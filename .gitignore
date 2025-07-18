@@ -1,0 +1,62 @@
+# Visual Studio 2015 이전 버전 관련 파일 (최신 버전에서는 거의 사용 안 됨)
+.vs/
+*.suo
+*.user
+*.builds
+*.resharper
+
+# 빌드 결과물
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+*.exe
+*.dll
+*.pdb
+*.apk
+*.apc
+*.aab
+*.appx
+*.appxbundle
+*.msi
+*.msp
+*.msm
+*.nupkg
+*.snk
+*.vsthost
+
+# 패키지 (NuGet)
+packages/
+*.nupkg
+project.lock.json # .NET Core 1.x에서 사용, 최신 SDK 스타일 프로젝트에서는 obj/project.assets.json이 대체
+obj/project.assets.json # .NET SDK 스타일 프로젝트의 패키지 캐시
+
+# 테스트 결과
+TestResults/
+*.trx
+*.coverage
+
+# 임시 파일
+*.tmp
+*.log
+*.userprefs
+
+# Visual Studio Code 관련 (선택 사항)
+.vscode/
+
+# Rider 관련 (JetBrains IDE)
+.idea/
+*.iml
+
+# 기타
+*.pidb
+*.booproj
+*.csproj.user
+*.unityproj
+*.npmrc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.*
+
