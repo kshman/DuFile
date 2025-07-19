@@ -1,4 +1,4 @@
-﻿namespace DuFile.Cuscon;
+﻿namespace DuFile.Windows;
 
 /// <summary>
 /// TabStrip 컨트롤은 탭 UI를 제공하는 사용자 지정 컨트롤입니다.
@@ -144,7 +144,8 @@ public class TabStrip : Control
 		base.OnPaint(e);
 		e.Graphics.Clear(BackColor);
 
-		// 1. 탭 목록 버튼 그리기 (맨 앞)
+		var settings = Settings.Instance;
+
 		const int tabListBtnW = 22;
 		_tabListButtonRect = new Rectangle(2, 2, tabListBtnW, Height - 4);
 
@@ -154,7 +155,7 @@ public class TabStrip : Control
 
 		// "≡" 문자로 목록 버튼 아이콘
 		using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-		using (var font = new Font(Font.FontFamily, 13, FontStyle.Bold))
+		using (var font = new Font(settings.UiFontFamily, 13, FontStyle.Bold))
 		using (Brush brush = new SolidBrush(Color.Black))
 		{
 			e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;

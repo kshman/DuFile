@@ -5,6 +5,8 @@ global using System.ComponentModel;
 global using System.IO;
 global using System.Linq;
 global using DuFile.Dowa;
+global using DebugOut = System.Diagnostics.Debug;
+global using Resources = DuFile.Properties.Resources;
 
 namespace DuFile;
 

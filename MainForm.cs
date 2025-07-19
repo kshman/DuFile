@@ -62,8 +62,7 @@ public partial class MainForm : Form
 		var bottomOffset = funcBar.Visible ? funcBar.Height : 0;
 		var availableHeight = ClientSize.Height - topOffset - bottomOffset;
 		var availableWidth = ClientSize.Width;
-		//var verticalBarWidth = verticalBar.Visible ? verticalBar.Width : 0;
-		var verticalBarWidth = verticalBar.Visible ? 20 : 0;
+		var verticalBarWidth = verticalBar.Visible ? verticalBar.StaticWidth : 0;
 		var panelWidth = (availableWidth - verticalBarWidth) / 2;
 
 		leftPanel.Location = new Point(0, topOffset);

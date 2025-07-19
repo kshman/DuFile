@@ -1,4 +1,4 @@
-﻿namespace DuFile.Cuscon;
+﻿namespace DuFile.Windows;
 
 /// <summary>
 /// VerticalBar 컨트롤은 파일 패널 사이에 위치하는 세로 방향의 커맨드 버튼 바입니다.
@@ -33,6 +33,13 @@ public sealed class VerticalBar : Control
 	private int _lastToolTipIndex = -1;
 
 	/// <summary>
+	/// Gets the static width value.
+	/// </summary>
+	[Browsable(false)]
+	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+	public int StaticWidth => 20;
+
+	/// <summary>
 	/// VerticalBar에서 버튼이 클릭될 때 발생하는 이벤트입니다.
 	/// </summary>
 	public event EventHandler<VerticalBarButtonClickedEventArgs>? ButtonClicked;
@@ -48,7 +55,7 @@ public sealed class VerticalBar : Control
 		var theme = Settings.Instance.Theme;
 
 		DoubleBuffered = true;
-		Width = 20;
+		Width = StaticWidth;
 		BackColor = theme.Background;
 		ForeColor = theme.Foreground;
 
@@ -60,14 +67,13 @@ public sealed class VerticalBar : Control
 	/// </summary>
 	private void RecalcButtonRects()
 	{
-		const int width = 20;
 		const int height = 18;
 		var y = 0;
 
 		_buttonRects = new Rectangle[_buttonDefs.Length];
 		for (var i = 0; i < _buttonDefs.Length; i++)
 		{
-			_buttonRects[i] = new Rectangle(0, y, width, height);
+			_buttonRects[i] = new Rectangle(0, y, StaticWidth, height);
 			y += height + _buttonDefs[i].BottomMargin;
 		}
 

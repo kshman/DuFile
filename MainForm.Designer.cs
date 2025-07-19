@@ -127,10 +127,10 @@
 			helpMenuItem = new ToolStripMenuItem();
 			aboutItem = new ToolStripMenuItem();
 			toolStrip = new ToolStrip();
-			leftPanel = new DuFile.Cuscon.FilePanel();
-			verticalBar = new DuFile.Cuscon.VerticalBar();
-			rightPanel = new DuFile.Cuscon.FilePanel();
-			funcBar = new DuFile.Cuscon.FuncBar();
+			leftPanel = new DuFile.Windows.FilePanel();
+			verticalBar = new DuFile.Windows.VerticalBar();
+			rightPanel = new DuFile.Windows.FilePanel();
+			funcBar = new DuFile.Windows.FuncBar();
 			menuStrip.SuspendLayout();
 			SuspendLayout();
 			// 
@@ -935,9 +935,9 @@
 		private ToolStripMenuItem toolSettingMenuItem;
 		private ToolStripMenuItem aboutItem;
 		private ToolStrip toolStrip;
-		private Cuscon.FilePanel leftPanel;
-		private Cuscon.VerticalBar verticalBar;
-		private Cuscon.FilePanel rightPanel;
-		private Cuscon.FuncBar funcBar;
+		private Windows.FilePanel leftPanel;
+		private Windows.VerticalBar verticalBar;
+		private Windows.FilePanel rightPanel;
+		private Windows.FuncBar funcBar;
 	}
 }

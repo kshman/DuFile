@@ -1,4 +1,4 @@
-﻿namespace DuFile.Cuscon;
+﻿namespace DuFile.Windows;
 
 /// <summary>
 /// 기능 키(F2~F9 등) 버튼을 한 줄로 배열하는 커스텀 컨트롤입니다.
