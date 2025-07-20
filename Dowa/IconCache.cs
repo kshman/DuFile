@@ -20,18 +20,15 @@ internal class IconCache
 		_cache.Clear();
 	}
 
-	public Bitmap? GetIcon(string path, bool isDirectory = false, bool isDrive = false)
+	public Bitmap? GetIcon(string fullName, string ext, bool isDirectory = false, bool isDrive = false)
 	{
 		string key;
 		if (isDrive)
-			key = $"drive#{path}";
+			key = $"drive#{fullName}";
 		else if (isDirectory)
 			key = "directory";
-		else if (Path.HasExtension(path))
-		{
-			var ext = Path.GetExtension(path);
-			key =ext is ".exe" or ".ico" ? path : ext;
-		}
+		else if (!string.IsNullOrEmpty(ext))
+			key = ext is "exe" or "ico" ? fullName : ext;
 		else
 		{
 			// 파일인데 확장가가 없네
@@ -41,7 +38,7 @@ internal class IconCache
 		if (_cache.TryGetValue(key, out var cachedIcon))
 			return cachedIcon;
 
-		var bmp = ExtractIcon(path, isDirectory);
+		var bmp = ExtractIcon(fullName, isDirectory);
 		_cache.Add(key, bmp);
 		return bmp;
 	}

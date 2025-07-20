@@ -6,23 +6,13 @@
 /// </summary>
 public sealed class FuncBar : Control
 {
-	/// <summary>
-	/// 각 기능 버튼의 정의를 나타냅니다.
-	/// </summary>
-	private record FuncDef(string Key, string Command, string External);
+	private const int MaxFuncCount = 8;
+	private static readonly int[] FuncNumbers = [2, 3, 4, 5, 6, 7, 8, 9];
 
-	// F2~F9 키 및 연결 명령 정의
-	private readonly FuncDef[] _funcDefs =
-	[
-		new("F2", "#Rename", string.Empty),
-		new("F3", "#View", string.Empty),
-		new("F4", "#Edit", string.Empty),
-		new("F5", "#Copy", string.Empty),
-		new("F6", "#Move", string.Empty),
-		new("F7", "#NewDirectory", string.Empty),
-		new("F8", "#Trash", string.Empty),
-		new("F9", "#Console", string.Empty)
-	];
+	private int? _hoverIndex;
+	private int? _pressedIndex;
+	private ModifierKey _prevModifier;
+	private ModifierKey _modifier;
 
 	/// <summary>
 	/// 버튼 높이(픽셀)
@@ -30,10 +20,6 @@ public sealed class FuncBar : Control
 	[Category("FuncBar")]
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
 	public int ButtonHeight { get; set; } = 25;
-
-	// 마우스 오버/클릭 상태 관리
-	private int? _hoverIndex;
-	private int? _pressedIndex;
 
 	/// <summary>
 	/// 버튼 클릭 시 발생하는 이벤트입니다.
@@ -43,6 +29,8 @@ public sealed class FuncBar : Control
 	/// <inheritdoc/>
 	public FuncBar()
 	{
+		DebugOut.Assert(MaxFuncCount == FuncNumbers.Length);
+
 		SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
 
 		// 테마 색상 및 폰트는 Settings.Instance에서 가져옵니다.
@@ -75,16 +63,15 @@ public sealed class FuncBar : Control
 		var theme = settings.Theme;
 		using var font = new Font(settings.UiFontFamily, settings.UiFontSize, FontStyle.Bold, GraphicsUnit.Point);
 
-		var buttonCount = _funcDefs.Length;
-		var buttonWidth = Width / buttonCount;
-		var extraWidth = Width / buttonCount;
+		var buttonWidth = Width / MaxFuncCount;
+		var extraWidth = Width / MaxFuncCount;
 		var height = ButtonHeight;
 
-		for (var i = 0; i < buttonCount; i++)
+		for (var i = 0; i < MaxFuncCount; i++)
 		{
-			var w = buttonWidth + (i == buttonCount - 1 ? extraWidth : 0);
+			var w = buttonWidth + (i == MaxFuncCount - 1 ? extraWidth : 0);
 			var rect = new Rectangle(i * buttonWidth, 0, w, height);
-			var def = _funcDefs[i];
+			var num = FuncNumbers[i];
 
 			var fill =
 				_pressedIndex == i ? theme.Accent :
@@ -97,14 +84,16 @@ public sealed class FuncBar : Control
 			using (var pen = new Pen(theme.Border, 1))
 				e.Graphics.DrawRectangle(pen, rect);
 
-			var accel = $" {def.Key}";
+			var accel = $" F{num}";
 			TextRenderer.DrawText(e.Graphics, accel, font, rect, theme.Accelerator,
 				TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
 			var accelSize = TextRenderer.MeasureText(accel, font);
 
-			var text = !string.IsNullOrEmpty(def.Command)
-				? Command.Definition.FriendlyName(def.Command)
-				: Path.GetFileName(def.External);
+			var cmd = settings.GetFuncKeyCommand(num, _modifier);
+			if (string.IsNullOrEmpty(cmd))
+				continue;
+
+			var text = cmd[0] == '#' ? Commands.FriendlyName(cmd) : Path.GetFileName(cmd);
 			var textRect = new Rectangle(rect.Left + accelSize.Width, rect.Top, rect.Width - accelSize.Width, rect.Height);
 			TextRenderer.DrawText(e.Graphics, text, font, textRect, theme.Foreground,
 				TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
@@ -136,8 +125,9 @@ public sealed class FuncBar : Control
 		var index = GetButtonIndexAtPoint(e.Location);
 		if (_pressedIndex != null && index == _pressedIndex)
 		{
-			var def = _funcDefs[_pressedIndex.Value];
-			ButtonClicked?.Invoke(this, new FuncBarButtonClickedEventArgs(_pressedIndex.Value, def.Command, def.External));
+			var num = FuncNumbers[_pressedIndex.Value];
+			var cmd = Settings.Instance.GetFuncKeyCommand(num, _modifier);
+			ButtonClicked?.Invoke(this, new FuncBarButtonClickedEventArgs(_pressedIndex.Value, num, cmd));
 		}
 		_pressedIndex = null;
 		Invalidate();
@@ -160,11 +150,10 @@ public sealed class FuncBar : Control
 	/// </summary>
 	private int? GetButtonIndexAtPoint(Point p)
 	{
-		var buttonCount = _funcDefs.Length;
-		var buttonWidth = Width / buttonCount;
+		var buttonWidth = Width / MaxFuncCount;
 		var height = ButtonHeight;
 
-		for (var i = 0; i < buttonCount; i++)
+		for (var i = 0; i < MaxFuncCount; i++)
 		{
 			var rect = new Rectangle(i * buttonWidth, 0, buttonWidth, height);
 			if (rect.Contains(p))
@@ -174,47 +163,56 @@ public sealed class FuncBar : Control
 	}
 
 	/// <summary>
-	/// 버튼의 커맨드를 변경합니다.
+	/// Updates the current modifier key state based on the specified key data.
 	/// </summary>
-	/// <param name="index">버튼 인덱스(0~7)</param>
-	/// <param name="command">새 커맨드 문자열</param>
-	public void SetFuncCommand(int index, string command)
+	/// <remarks>This method sets the internal modifier key state to reflect the current state of the Control,
+	/// Shift, and Alt keys. If the modifier state changes, the method triggers a refresh of the associated
+	/// component.</remarks>
+	/// <param name="keyData">A bitwise combination of <see cref="Keys"/> values representing the current state of the keyboard modifier keys.</param>
+	public void SetModifier(Keys keyData)
 	{
-		if (index < 0 || index >= _funcDefs.Length)
-			throw new ArgumentOutOfRangeException(nameof(index), "Index must be between 0 and 7.");
-
-		_funcDefs[index] = new FuncDef(_funcDefs[index].Key, command, string.Empty);
-		Invalidate();
+		_prevModifier = _modifier;
+		_modifier = ModifierKey.None;
+		if ((keyData & Keys.Control) == Keys.Control)
+			_modifier |= ModifierKey.Control;
+		if ((keyData & Keys.Shift) == Keys.Shift)
+			_modifier |= ModifierKey.Shift;
+		if ((keyData & Keys.Alt) == Keys.Alt)
+			_modifier |= ModifierKey.Alt;
+		if (_modifier != _prevModifier)
+			Invalidate();
 	}
 
 	/// <summary>
-	/// 버튼에 외부 실행 파일을 등록합니다.
+	/// Retrieves the command associated with the specified key code.
 	/// </summary>
-	/// <param name="index">버튼 인덱스(0~7)</param>
-	/// <param name="external">실행 파일 경로</param>
-	public void SetFuncExternal(int index, string external)
+	/// <remarks>This method calculates the command based on the provided key code and the current modifier
+	/// state.</remarks>
+	/// <param name="keyCode">The key code representing a function key. Must be a value between <see cref="Keys.F2"/> and the maximum function
+	/// key supported.</param>
+	/// <returns>The command string associated with the specified key code. Returns <see cref="Commands.None"/> if the key code is
+	/// not within the valid range.</returns>
+	public string GetCommand(Keys keyCode)
 	{
-		if (index < 0 || index >= _funcDefs.Length)
-			throw new ArgumentOutOfRangeException(nameof(index), "Index must be between 0 and 7.");
-		if (string.IsNullOrEmpty(external))
-			throw new ArgumentException("External command cannot be null or empty.", nameof(external));
-
-		_funcDefs[index] = new FuncDef(_funcDefs[index].Key, string.Empty, external);
-		Invalidate();
+		var val = (int)keyCode - (int)Keys.F2;
+		if (val is < 0 or >= MaxFuncCount)
+			return Commands.None;
+		var num = FuncNumbers[val];
+		return Settings.Instance.GetFuncKeyCommand(num, _modifier);
 	}
 }
 
 /// <summary>
 /// FuncBar 버튼 클릭 이벤트 데이터
 /// </summary>
-public class FuncBarButtonClickedEventArgs(int index, string command, string external) : EventArgs
+public class FuncBarButtonClickedEventArgs(int index, int funcKey, string command) : EventArgs
 {
 	/// <summary>버튼 인덱스</summary>
 	public int Index { get; } = index;
 
+	/// <summary>기능 키 번호 (F2~F9에서 F빼고)</summary>
+	public int FuncionKeyNumber { get; } = funcKey;
+
 	/// <summary>커맨드 문자열(없으면 "")</summary>
 	public string Command { get; } = command;
-
-	/// <summary>외부 실행 문자열(없으면 "")</summary>
-	public string External { get; } = external;
 }

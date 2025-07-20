@@ -1,4 +1,5 @@
-﻿using Microsoft.Data.Sqlite;
+﻿using System.Diagnostics.CodeAnalysis;
+using Microsoft.Data.Sqlite;
 using System.Globalization;
 
 namespace DuFile;
@@ -147,7 +148,7 @@ internal class Settings
 
 	public Point WindowLocation
 	{
-		get => new(GetInt("WindowX", 100), GetInt("WindowY", 100));
+		get => new(GetInt("WindowX", -1), GetInt("WindowY", -1));
 		set { SetInt("WindowX", value.X); SetInt("WindowY", value.Y); }
 	}
 
@@ -155,6 +156,12 @@ internal class Settings
 	{
 		get => GetBool("WindowMaximized");
 		set => SetBool("WindowMaximized", value);
+	}
+
+	public bool ConfirmOnExit
+	{
+		get => GetBool("ConfirmOnExit");
+		set => SetBool("ConfirmOnExit", value);
 	}
 
 	public bool ShowMenubar
@@ -229,28 +236,58 @@ internal class Settings
 		set => SetBool("ShowHiddenFiles", value);
 	}
 
-	public string GetFuncKeyAction(int functionKey)
+	public string GetFuncKeyCommand(int functionKey, ModifierKey modifier)
 	{
-		return GetString($"ShortcutF{functionKey}", GetDefaultFuncKeyAction(functionKey));
+		return GetString($"Shortcut{(int)modifier}F{functionKey}", GetDefaultFuncKeyCommand(functionKey, modifier));
 	}
 
-	public void SetFuncKeyAction(int functionKey, string action)
+	public void SetFuncKeyCommand(int functionKey, ModifierKey modifier, string command)
 	{
-		SetString($"ShortcutF{functionKey}", action);
+		SetString($"Shortcut{(int)modifier}F{functionKey}", command);
 	}
 
-	private static string GetDefaultFuncKeyAction(int functionKey) => functionKey switch
+	[SuppressMessage("ReSharper", "RedundantSwitchExpressionArms")]
+	private static string GetDefaultFuncKeyCommand(int functionKey, ModifierKey modifier) =>modifier switch
 	{
-		1 => "#Help",
-		2 => "#Rename",
-		3 => "#View",
-		4 => "#Edit",
-		5 => "#Copy",
-		6 => "#Move",
-		7 => "#NewFolder",
-		8 => "#Delete",
-		9 => "#Settings",
-		_ => string.Empty
+		ModifierKey.Control => functionKey switch
+		{
+			1 => Commands.Help,
+			2 => Commands.AdvancedRename,
+			3 => Commands.None,
+			4 => Commands.None,
+			5 => Commands.None,
+			6 => Commands.None,
+			7 => Commands.None,
+			8 => Commands.None,
+			9 => Commands.None,
+			_ => Commands.None
+		},
+		ModifierKey.Shift => functionKey switch
+		{
+			1 => Commands.Help,
+			2 => Commands.UserDocument,
+			3 => Commands.UserDownload,
+			4 => Commands.UserPicture,
+			5 => Commands.UserAudio,
+			6 => Commands.UserVideo,
+			7 => Commands.None,
+			8 => Commands.Delete,
+			9 => Commands.None,
+			_ => Commands.None
+		},
+		_ => functionKey switch
+		{
+			1 => Commands.Help,
+			2 => Commands.Rename,
+			3 => Commands.View,
+			4 => Commands.Edit,
+			5 => Commands.Copy,
+			6 => Commands.Move,
+			7 => Commands.NewDirectory,
+			8 => Commands.Trash,
+			9 => Commands.Console,
+			_ => Commands.None
+		}
 	};
 
 	public int ActivePanel
@@ -287,5 +324,23 @@ internal class Settings
 	{
 		var tabs = GetString("Panel2Tabs", string.Empty);
 		return string.IsNullOrEmpty(tabs) ? [] : tabs.Split('|', StringSplitOptions.RemoveEmptyEntries);
+	}
+
+	public void SetLeftHistory(IEnumerable<string> history) =>
+		SetString("Panel1History", string.Join("|", history));
+
+	public void SetRightHistory(IEnumerable<string> history) =>
+		SetString("Panel2History", string.Join("|", history));
+
+	public IEnumerable<string> GetLeftHistory()
+	{
+		var history = GetString("Panel1History", string.Empty);
+		return string.IsNullOrEmpty(history) ? [] : history.Split('|', StringSplitOptions.RemoveEmptyEntries);
+	}
+
+	public IEnumerable<string> GetRightHistory()
+	{
+		var history = GetString("Panel2History", string.Empty);
+		return string.IsNullOrEmpty(history) ? [] : history.Split('|', StringSplitOptions.RemoveEmptyEntries);
 	}
 }
