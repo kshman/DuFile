@@ -63,7 +63,7 @@ public class BreadcrumbPath : Control
 		if (IsReallyDesignMode)
 		{
 			// 디자인 모드에서 기본 경로 설정
-			Path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+			Path = Settings.Instance.StartDirectory;
 		}
 	}
 

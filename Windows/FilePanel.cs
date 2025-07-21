@@ -25,7 +25,6 @@ public class FilePanel : UserControl
 #nullable restore
 
 	private string _currentDirectory = string.Empty;
-	private string _currentFile = string.Empty;
 	private bool _isActivePanel;
 	private bool _isEditPathMode;
 	private bool _tabLoaded;
@@ -37,6 +36,9 @@ public class FilePanel : UserControl
 
 	[Category("FilePanel")]
 	public event EventHandler<FilePanelActiveEventArgs>? PanelActivated;
+
+	// 디자인 모드 확인
+	private bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
 
 	public FilePanel()
 	{
@@ -295,7 +297,15 @@ public class FilePanel : UserControl
 	private void tabStrip_SelectedIndexChanged(object? sender, TabStripIndexChangedEventArgs e)
 	{
 		if (tabStrip.SelectedTab?.Value is string path)
-			NavigateTo(path);
+		{
+			if (!NavigateTo(path))
+			{
+				// 경로가 이상하다. 기본 경로로 돌아간다
+				// 이것도 잘못되면.. 모르겠다
+				// TODO: 경로가 잘못되면 탭을 닫아야 하는데, 안했다.
+				NavigateTo(Settings.Instance.StartDirectory);
+			}
+		}
 	}
 
 	private void tabStrip_Clicked(object? sender, TabStripClickedEventArgs e)
@@ -306,11 +316,7 @@ public class FilePanel : UserControl
 			{
 				// 탭 메뉴 처리
 				var theme = Settings.Instance.Theme;
-				var menu = new ContextMenuStrip
-				{
-					BackColor = theme.Background,
-					ForeColor = theme.Foreground
-				};
+				var menu = new ContextMenuStrip();
 
 				if (e.Element == TabStripElement.Tab)
 				{
@@ -320,11 +326,7 @@ public class FilePanel : UserControl
 					var closeItem = new ToolStripMenuItem("닫기", null, (_, _) =>
 					{
 						tabStrip.RemoveTabAt(e.Index);
-					})
-					{
-						BackColor = theme.Background,
-						ForeColor = theme.Foreground
-					};
+					});
 					menu.Items.Add(closeItem);
 
 					// 다른 탭 닫기
@@ -333,11 +335,7 @@ public class FilePanel : UserControl
 						var closeOthersItem = new ToolStripMenuItem("다른 탭 닫기", null, (_, _) =>
 						{
 							tabStrip.RemoveOtherTabs(e.Index);
-						})
-						{
-							BackColor = theme.Background,
-							ForeColor = theme.Foreground
-						};
+						});
 						menu.Items.Add(closeOthersItem);
 					}
 
@@ -349,11 +347,7 @@ public class FilePanel : UserControl
 				var newTabItem = new ToolStripMenuItem("새 탭 추가", null, (_, _) =>
 				{
 					AddTab(null, true);
-				})
-				{
-					BackColor = theme.Background,
-					ForeColor = theme.Foreground
-				};
+				});
 				menu.Items.Add(newTabItem);
 
 				menu.Show(tabStrip, e.Location);
@@ -373,8 +367,7 @@ public class FilePanel : UserControl
 		if (e.KeyCode == Keys.Enter)
 		{
 			var path = pathTextBox.Text.Trim();
-			if (Directory.Exists(path))
-				NavigateTo(path);
+			NavigateTo(path);
 			LeavePathEditMode();
 			e.Handled = true;
 		}
@@ -408,11 +401,7 @@ public class FilePanel : UserControl
 
 		var theme = Settings.Instance.Theme;
 
-		var menu = new ContextMenuStrip
-		{
-			BackColor = theme.Background,
-			ForeColor = theme.Foreground
-		};
+		var menu = new ContextMenuStrip();
 
 		var i = 0;
 		foreach (var path in _history.Take(9))
@@ -421,8 +410,6 @@ public class FilePanel : UserControl
 			var item = new ToolStripMenuItem(path)
 			{
 				Tag = $"(&{i}) {path}",
-				BackColor = theme.Background,
-				ForeColor = theme.Foreground
 			};
 			item.Click += (_, _) => NavigateTo(item.Tag.ToString()!);
 			menu.Items.Add(item);
@@ -442,10 +429,10 @@ public class FilePanel : UserControl
 
 	}
 
-	public void NavigateTo(string directory)
+	public bool NavigateTo(string directory)
 	{
 		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-			return;
+			return false;
 
 		var settings = Settings.Instance;
 		var showHidden = settings.ShowHiddenFiles;
@@ -497,6 +484,8 @@ public class FilePanel : UserControl
 
 		// 정보 갱신
 		drvDirLabel.SetDirectoryInfo(dirCount, fileCount, totalSize);
+
+		return true;
 	}
 
 	public void SetActivePanel(bool isActive)
@@ -531,7 +520,7 @@ public class FilePanel : UserControl
 	public void AddTab(string? directory, bool force = false)
 	{
 		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
-			directory = Directory.Exists(_currentDirectory) ? _currentDirectory : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+			directory = Directory.Exists(_currentDirectory) ? _currentDirectory : Settings.Instance.StartDirectory;
 
 		var index = tabStrip.GetTabIndexByValue(directory);
 		if (!force && index >= 0)
@@ -572,61 +561,59 @@ public class FilePanel : UserControl
 
 		_tabLoaded = true;
 
-		if (!DesignMode)
+		if (IsReallyDesignMode)
 		{
-			var settings = Settings.Instance;
-			var prefix = $"Panel{PanelIndex}";
+			// 디자인 모드에서는 탭을 처리하면 안된다
+			return;
+		}
 
-			var isOk = true;
-			var activeIndex = settings.GetInt($"{prefix}Active", -1);
-			if (activeIndex < 0)
-				isOk = false;
-			var tags = settings.GetString($"{prefix}Tabs", string.Empty);
-			if (string.IsNullOrEmpty(tags))
-				isOk = false;
-			var history = settings.GetString($"{prefix}History", string.Empty);
+		var settings = Settings.Instance;
+		var prefix = $"Panel{PanelIndex}";
 
-			// 일단 히스토리부터
-			if (!string.IsNullOrEmpty(history))
+		var isOk = true;
+		var activeIndex = settings.GetInt($"{prefix}Active", -1);
+		if (activeIndex < 0)
+			isOk = false;
+		var tabs = settings.GetString($"{prefix}Tabs", string.Empty);
+		if (string.IsNullOrEmpty(tabs))
+			isOk = false;
+		var history = settings.GetString($"{prefix}History", string.Empty);
+
+		// 일단 히스토리부터
+		if (!string.IsNullOrEmpty(history))
+		{
+			_history = history.SplitWithSeparator('|').ToList();
+			if (_history.Count > 20)
+				_history = _history.Take(20).ToList(); // 최대 20개까지만 유지
+		}
+
+		// 읽을 탭이 있으면 처리
+		if (isOk)
+		{
+			var directories = tabs.SplitWithSeparator('|');
+			if (directories.Length > 0)
 			{
-				_history = history.Split('|').Where(s => !string.IsNullOrEmpty(s)).ToList();
-				if (_history.Count > 20)
-					_history = _history.Take(20).ToList(); // 최대 20개까지만 유지
-			}
-
-			// 읽을 탭이 있으면 처리
-			if (isOk)
-			{
-				var tagList = tags.Split('|').Where(s => !string.IsNullOrEmpty(s)).ToList();
-				if (tagList.Count > 0)
+				foreach (var directory in directories)
 				{
-					foreach (var tag in tagList)
-					{
-						var d = new DirectoryInfo(tag);
-						if (!d.Exists)
-							continue; // 유효하지 않은 경로는 무시
-						tabStrip.AddTab(d.Name, tag);
-					}
+					var d = new DirectoryInfo(directory);
+					if (!d.Exists)
+						continue; // 유효하지 않은 경로는 무시
+					tabStrip.AddTab(d.Name, directory);
+				}
 
-					if (tabStrip.Count > 0)
-					{
-						if (activeIndex < tabStrip.Count)
-							tabStrip.SelectedIndex = activeIndex;
-						return;
-					}
+				if (tabStrip.Count > 0)
+				{
+					if (activeIndex < tabStrip.Count)
+						tabStrip.SelectedIndex = activeIndex;
 				}
 			}
 		}
-
-		// 탭이 없다?! 그렇다면 기본 경로로 탭을 하나 만든다
-		var documents = new DirectoryInfo(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
-		tabStrip.AddTab(documents.Name, documents.FullName);
 	}
 
 	// 탭 목록 저장. Dispose에서 호출된다.
 	private void SaveTabs()
 	{
-		if (DesignMode)
+		if (IsReallyDesignMode)
 		{
 			// 디자인 모드에서는 탭을 처리하면 안된다
 			return;

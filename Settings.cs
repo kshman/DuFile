@@ -14,6 +14,8 @@ internal class Settings
 
 	public static Settings Instance => _instance ??= new Settings();
 
+	private string InitialStartDirectory => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
 	private Settings()
 	{
 		// 여기서 초기화를 했더니 디자이너가 맘대로 설정 파일을 갖고 논다
@@ -139,6 +141,12 @@ internal class Settings
 	public void SetSetting(string key, string value) =>
 		SetString(key, value);
 
+	public string StartDirectory
+	{
+		get => GetString("StartDirectory", InitialStartDirectory);
+		set => SetString("StartDirectory", value);
+	}
+
 	public Size WindowSize
 	{
 		get => new(GetInt("WindowWidth", 1200), GetInt("WindowHeight", 800));
@@ -195,7 +203,7 @@ internal class Settings
 
 	public string UiFontFamily
 	{
-		get => GetString("UiFontFamily", "Microsoft Sans Serif");
+		get => GetString("UiFontFamily", "SegoUI");
 		set => SetString("UiFontFamily", value);
 	}
 
@@ -207,13 +215,13 @@ internal class Settings
 
 	public string FileFontFamily
 	{
-		get => GetString("FileFontFamily", "Microsoft Sans Serif");
+		get => GetString("FileFontFamily", "SegoUI");
 		set => SetString("FileFontFamily", value);
 	}
 
 	public float FileFontSize
 	{
-		get => GetFloat("FileFontSize", 11f);
+		get => GetFloat("FileFontSize", 10f);
 		set => SetFloat("FileFontSize", value);
 	}
 

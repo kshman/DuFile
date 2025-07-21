@@ -54,4 +54,13 @@ internal static class Alter
 			return Keys.None;
 		}
 	}
+
+	// 문자열 분리기
+	public static string[] SplitWithSeparator(this string input, char separator = ',')
+	{
+		// var tagList = tags.Split('|').Where(s => !string.IsNullOrEmpty(s))
+		return string.IsNullOrWhiteSpace(input) ? 
+			[] : 
+			input.Split(separator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+	}
 }

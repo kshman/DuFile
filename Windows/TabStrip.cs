@@ -6,14 +6,12 @@
 /// </summary>
 public class TabStrip : Control
 {
-	// 현재 선택된 탭 인덱스
-	private int _selectedIndex = -1;
-
-	// 닫기 버튼 크기
-	private int _closeButtonSize = 14;
 	// 아이콘 크기
 	private int _iconSize = 16;
-
+	// 닫기 버튼 크기
+	private int _closeButtonSize = 14;
+	// 선택된 탭 위에 칠할 강조 사각형의 높이
+	private int _activeTabHighlightHeight = 2;
 	// 탭 최소/최대 너비
 	private int _minTabWidth = 60;
 	private int _maxTabWidth = 180;
@@ -24,10 +22,22 @@ public class TabStrip : Control
 	// 스크롤 버튼 표시 여부
 	private bool _showScrollButtons;
 
+	// 현재 선택된 탭 인덱스
+	private int _selectedIndex = -1;
+	// 현재 마우스가 올라간 탭 인덱스
+	private int _hoverTabIndex = -1;
+
 	// 탭 목록 버튼 영역
 	private Rectangle _tabListButtonRect = Rectangle.Empty;
 	// 탭 목록 메뉴
 	private ContextMenuStrip? _tabListMenu;
+
+	/// <summary>
+	/// 선택된 탭 위에 칠할 강조 사각형의 높이(포인트). 디자이너에서 변경 가능.
+	/// </summary>
+	[Category("TabStrip")]
+	[DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
+	public int ActiveTabHighlightHeight { get => _activeTabHighlightHeight; set { _activeTabHighlightHeight = value; Invalidate(); } }
 
 	/// <summary>
 	/// TabStrip에 표시되는 탭 목록을 가져옵니다.
@@ -299,18 +309,25 @@ public class TabStrip : Control
 			var iconSpace = (tab.Icon != null) ? (_iconSize + 4) : 0;
 
 			var textSize = TextRenderer.MeasureText(tab.Text, Font);
-			var tabWidth = Math.Max(_minTabWidth, Math.Min(textSize.Width + 20 + iconSpace, _maxTabWidth));
-
-			if (i == _selectedIndex)
-				tabWidth += _closeButtonSize + 6;
+			var tabWidth = Math.Max(_minTabWidth, Math.Min(textSize.Width + 20 + iconSpace + _closeButtonSize + 6, _maxTabWidth));
 
 			var tabRect = new Rectangle(x, 2, tabWidth, Height - 4);
 			tab.Bounds = tabRect;
 
-			using (Brush b = new SolidBrush(i == _selectedIndex ? theme.BackSelection : theme.Background))
-				e.Graphics.FillRectangle(b, tabRect);
+			var tabBrush =
+				i == _selectedIndex ? new SolidBrush(theme.BackSelection) :
+				i == _hoverTabIndex ? new SolidBrush(theme.BackContent) :
+				new SolidBrush(theme.Background);
+			using (tabBrush)
+				e.Graphics.FillRectangle(tabBrush, tabRect);
 
 			ControlPaint.DrawBorder(e.Graphics, tabRect, theme.Border, ButtonBorderStyle.Solid);
+
+			if (i == _selectedIndex && ActiveTabHighlightHeight > 0)
+			{
+				using var highlightBrush = new SolidBrush(theme.BackActive);
+				e.Graphics.FillRectangle(highlightBrush, tabRect.Left, tabRect.Top, tabRect.Width, ActiveTabHighlightHeight);
+			}
 
 			var drawX = tabRect.Left + 8;
 			if (tab.Icon != null)
@@ -319,24 +336,23 @@ public class TabStrip : Control
 				drawX += _iconSize + 4;
 			}
 
-			var textRect = new Rectangle(drawX, tabRect.Top, tabRect.Width - (drawX - tabRect.Left) - 2, tabRect.Height);
-			if (i == _selectedIndex)
-				textRect.Width -= (_closeButtonSize + 6);
+			var textRect = new Rectangle(drawX, tabRect.Top, tabRect.Width - (drawX - tabRect.Left) - 2 - (_closeButtonSize + 6), tabRect.Height);
 
 			// 텍스트 ... 처리
 			TextRenderer.DrawText(e.Graphics, tab.Text, Font, textRect, theme.Foreground,
 				TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
 
-			// 닫기 버튼
+			// 모든 탭에 닫기 버튼 위치 계산
+			var closeRect = new Rectangle(
+				tabRect.Right - _closeButtonSize - 4,
+				tabRect.Top + (tabRect.Height - _closeButtonSize) / 2,
+				_closeButtonSize,
+				_closeButtonSize
+			);
+			tab.CloseButtonBounds = closeRect;
+
 			if (i == _selectedIndex && Tabs.Count > 1)
 			{
-				var closeRect = new Rectangle(
-					tabRect.Right - _closeButtonSize - 4,
-					tabRect.Top + (tabRect.Height - _closeButtonSize) / 2,
-					_closeButtonSize,
-					_closeButtonSize
-				);
-				tab.CloseButtonBounds = closeRect;
 				using (Brush closeBrush = new SolidBrush(theme.Accelerator))
 					e.Graphics.FillEllipse(closeBrush, closeRect);
 				using (var pen = new Pen(theme.Foreground, 2))
@@ -347,10 +363,6 @@ public class TabStrip : Control
 				}
 				using (var pen = new Pen(theme.Border))
 					e.Graphics.DrawEllipse(pen, closeRect);
-			}
-			else
-			{
-				tab.CloseButtonBounds = Rectangle.Empty;
 			}
 
 			x += tabWidth + 2;
@@ -370,48 +382,41 @@ public class TabStrip : Control
 		}
 	}
 
-	// 스크롤 버튼 그리기
-	private static void DrawScrollButton(Graphics g, Rectangle rect, bool right, bool enabled)
+	// 마우스 위치에 따라 hover 탭 인덱스를 계산하고, 필요시 Invalidate합니다.
+	private void UpdateHoverTabIndex(Point mouseLocation)
 	{
-		var bg = enabled ? Color.LightGray : Color.Gainsboro;
-		using (Brush b = new SolidBrush(bg))
-			g.FillRectangle(b, rect);
-		ControlPaint.DrawBorder(g, rect, Color.Gray, ButtonBorderStyle.Solid);
-
-		// 삼각형
-		var points = right ?
-			new[] { new Point(rect.Left + 6, rect.Top + rect.Height / 2 - 5), new Point(rect.Right - 6, rect.Top + rect.Height / 2), new Point(rect.Left + 6, rect.Top + rect.Height / 2 + 5) } :
-			new[] { new Point(rect.Right - 6, rect.Top + rect.Height / 2 - 5), new Point(rect.Left + 6, rect.Top + rect.Height / 2), new Point(rect.Right - 6, rect.Top + rect.Height / 2 + 5) };
-
-		using (Brush f = new SolidBrush(enabled ? Color.Black : Color.Gray))
-			g.FillPolygon(f, points);
-	}
-
-	// 모든 탭의 총 너비 계산
-	private int GetTotalTabsWidth()
-	{
-		var x = 0;
+		var newHover = -1;
 		for (var i = 0; i < Tabs.Count; i++)
 		{
-			var tab = Tabs[i];
-			var iconSpace = (tab.Icon != null) ? (_iconSize + 4) : 0;
-			var textSize = TextRenderer.MeasureText(tab.Text, Font);
-			var tabWidth = Math.Max(_minTabWidth, Math.Min(textSize.Width + 20 + iconSpace, _maxTabWidth));
-			if (i == _selectedIndex)
-				tabWidth += _closeButtonSize + 6;
-			x += tabWidth + 2;
+			if (Tabs[i].Bounds.Contains(mouseLocation))
+			{
+				newHover = i;
+				break;
+			}
 		}
-		return x;
+		if (_hoverTabIndex != newHover)
+		{
+			_hoverTabIndex = newHover;
+			Invalidate();
+		}
 	}
 
-	// 클릭 이벤트 처리
-	private bool InvokeClicked(MouseEventArgs mArgs, TabStripElement element, int index = -1)
+	/// <inheritdoc />
+	protected override void OnMouseMove(MouseEventArgs e)
 	{
-		if (Clicked == null)
-			return false; // 이벤트 핸들러가 없으면 처리하지 않음
-		var args = new TabStripClickedEventArgs(mArgs.Location, mArgs.Button, element, index);
-		Clicked.Invoke(this, args);
-		return args.Handled;
+		base.OnMouseMove(e);
+		UpdateHoverTabIndex(e.Location);
+	}
+
+	/// <inheritdoc />
+	protected override void OnMouseLeave(EventArgs e)
+	{
+		base.OnMouseLeave(e);
+		if (_hoverTabIndex != -1)
+		{
+			_hoverTabIndex = -1;
+			Invalidate();
+		}
 	}
 
 	/// <inheritdoc />
@@ -419,6 +424,8 @@ public class TabStrip : Control
 	{
 		base.OnMouseDown(e);
 		Focus();
+
+		UpdateHoverTabIndex(e.Location);
 
 		// 탭 목록 버튼 클릭 체크
 		if (_tabListButtonRect.Contains(e.Location))
@@ -465,7 +472,7 @@ public class TabStrip : Control
 			var tab = Tabs[i];
 
 			// 닫기 버튼
-			if (e.Button == MouseButtons.Left && Tabs.Count > 1 && i == _selectedIndex && tab.CloseButtonBounds.Contains(e.Location))
+			if (e.Button == MouseButtons.Left && Tabs.Count > 1 && tab.CloseButtonBounds.Contains(e.Location))
 			{
 				if (!InvokeClicked(e, TabStripElement.Close, i))
 					CloseClicked?.Invoke(this, new TabStripCloseClickedEventArgs(i));
@@ -521,6 +528,47 @@ public class TabStrip : Control
 	{
 		base.OnResize(e);
 		Invalidate();
+	}
+
+	// 모든 탭의 총 너비를 계산합니다.
+	private int GetTotalTabsWidth()
+	{
+		var x = 0;
+		foreach (var tab in Tabs)
+		{
+			var iconSpace = (tab.Icon != null) ? (_iconSize + 4) : 0;
+			var textSize = TextRenderer.MeasureText(tab.Text, Font);
+			var tabWidth = Math.Max(_minTabWidth, Math.Min(textSize.Width + 20 + iconSpace + _closeButtonSize + 6, _maxTabWidth));
+			x += tabWidth + 2;
+		}
+		return x;
+	}
+
+	// 스크롤 버튼을 그립니다.
+	private static void DrawScrollButton(Graphics g, Rectangle rect, bool right, bool enabled)
+	{
+		var bg = enabled ? Color.LightGray : Color.Gainsboro;
+		using (Brush b = new SolidBrush(bg))
+			g.FillRectangle(b, rect);
+		ControlPaint.DrawBorder(g, rect, Color.Gray, ButtonBorderStyle.Solid);
+
+		// 삼각형
+		var points = right ?
+			new[] { new Point(rect.Left + 6, rect.Top + rect.Height / 2 - 5), new Point(rect.Right - 6, rect.Top + rect.Height / 2), new Point(rect.Left + 6, rect.Top + rect.Height / 2 + 5) } :
+			new[] { new Point(rect.Right - 6, rect.Top + rect.Height / 2 - 5), new Point(rect.Left + 6, rect.Top + rect.Height / 2), new Point(rect.Right - 6, rect.Top + rect.Height / 2 + 5) };
+
+		using (Brush f = new SolidBrush(enabled ? Color.Black : Color.Gray))
+			g.FillPolygon(f, points);
+	}
+
+	// 클릭 이벤트를 발생시키고, 핸들링 여부를 반환합니다.
+	private bool InvokeClicked(MouseEventArgs mArgs, TabStripElement element, int index = -1)
+	{
+		if (Clicked == null)
+			return false;
+		var args = new TabStripClickedEventArgs(mArgs.Location, mArgs.Button, element, index);
+		Clicked.Invoke(this, args);
+		return args.Handled;
 	}
 
 	/// <summary>

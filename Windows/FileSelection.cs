@@ -34,7 +34,7 @@ public sealed class FileSelection : ListView
 
 	public void AddFileItem(FileInfo fileinfo)
 	{
-		var item = new FilItem(fileinfo);
+		var item = new FileItem(fileinfo);
 		Items.Add(item);
 	}
 
@@ -95,7 +95,7 @@ public sealed class FileSelection : ListView
 
 		switch (item)
 		{
-			case FilItem file:
+			case FileItem file:
 				TextRenderer.DrawText(g, file.FileName, font, new Point(x, y), textColor, TextFormatFlags.Left);
 				x += 180;
 				TextRenderer.DrawText(g, file.Extension, font, new Point(x, y), textColor, TextFormatFlags.Left);
@@ -155,7 +155,7 @@ public sealed class FileSelection : ListView
 
 		switch (item)
 		{
-			case FilItem file:
+			case FileItem file:
 			{
 				var text = file.FileName;
 				if (!string.IsNullOrEmpty(file.Extension))
@@ -187,12 +187,93 @@ public sealed class FileSelection : ListView
 		}
 	}
 
+	private int _anchorIndex = -1; // Shift+선택의 기준 인덱스
+
+	private static bool IsSelectable(ListViewItem item) => item switch
+	{
+		FileItem { IsDirectory: true, FileName: ".." } or DriveItem => false,
+		_ => true
+	};
+
+	protected override void OnKeyDown(KeyEventArgs e)
+	{
+		base.OnKeyDown(e);
+
+		if (e.KeyCode is Keys.Space or Keys.Insert)
+		{
+			if (FocusedItem != null && IsSelectable(FocusedItem))
+			{
+				FocusedItem.Selected = !FocusedItem.Selected;
+				_anchorIndex = FocusedItem.Index;
+			}
+			e.Handled = true;
+		}
+		else if (e is { Shift: true, KeyCode: Keys.Up or Keys.Down })
+		{
+			if (FocusedItem != null)
+			{
+				if (_anchorIndex == -1)
+					_anchorIndex = FocusedItem.Index;
+				int newIndex = FocusedItem.Index + (e.KeyCode == Keys.Up ? -1 : 1);
+				if (newIndex >= 0 && newIndex < Items.Count && IsSelectable(Items[newIndex]))
+				{
+					Items[newIndex].Focused = true;
+					Items[newIndex].EnsureVisible();
+					SelectRange(_anchorIndex, newIndex);
+				}
+			}
+			e.Handled = true;
+		}
+		else if (e is { Shift: false, KeyCode: Keys.Up or Keys.Down })
+		{
+			if (FocusedItem != null)
+				_anchorIndex = FocusedItem.Index;
+		}
+	}
+
+	protected override void OnMouseDown(MouseEventArgs e)
+	{
+		var hit = HitTest(e.Location);
+		if (hit.Item != null && IsSelectable(hit.Item))
+		{
+			var idx = hit.Item.Index;
+			if (e.Button == MouseButtons.Left)
+			{
+				if (ModifierKeys.HasFlag(Keys.Shift))
+				{
+					if (_anchorIndex == -1)
+						_anchorIndex = idx;
+					SelectRange(_anchorIndex, idx);
+				}
+				else if (ModifierKeys.HasFlag(Keys.Control))
+				{
+					hit.Item.Selected = !hit.Item.Selected;
+					_anchorIndex = idx;
+				}
+				else
+				{
+					_anchorIndex = idx;
+				}
+				FocusedItem = hit.Item;
+			}
+		}
+		base.OnMouseDown(e);
+	}
+
+	private void SelectRange(int from, int to)
+	{
+		if (from > to)
+			(from, to) = (to, from);
+		for (var i = 0; i < Items.Count; i++)
+			Items[i].Selected = (i >= from && i <= to && IsSelectable(Items[i]));
+	}
+
 	public class FileSelectionItem : ListViewItem
 	{
 		public Image? Icon { get; protected set; }
 	}
 
-	public class FilItem : FileSelectionItem
+	public class FileItem : FileSelectionItem
 	{
 		public FileInfo FileInfo { get; }
 
@@ -204,7 +285,7 @@ public sealed class FileSelection : ListView
 		public FileAttributes Attribute => FileInfo.Attributes;
 		public bool IsDirectory => FileInfo.Attributes.HasFlag(FileAttributes.Directory);
 
-		public FilItem(FileInfo fileInfo)
+		public FileItem(FileInfo fileInfo)
 		{
 			FileInfo = fileInfo;
 			Icon = IconCache.Instance.GetIcon(FullName, Extension, IsDirectory);
