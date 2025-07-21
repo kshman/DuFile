@@ -5,41 +5,52 @@
 /// </summary>
 public sealed class DirectoryLabel : Control
 {
+	// 폴더 개수
 	private int _dirCount;
+	// 파일 개수
 	private int _fileCount;
+	// 전체 크기 문자열
 	private string _totalSize = string.Empty;
+	// 드라이브 레이블
 	private string _drvLabel = string.Empty;
+	// 드라이브 이름
 	private string _drvName = string.Empty;
+	// 드라이브 남은 용량 문자열
 	private string _drvAvailable = string.Empty;
+	// 활성화 상태
 	private bool _isActive;
 
+	// 왼쪽 텍스트 영역
 	private Rectangle _leftRect = Rectangle.Empty;
+	// 오른쪽 텍스트 영역
 	private Rectangle _rightRect = Rectangle.Empty;
 
+	// 왼쪽 마우스 오버 상태
 	private bool _leftHover;
+	// 오른쪽 마우스 오버 상태
 	private bool _rightHover;
 
 	/// <summary>
-	/// Occurs when a directory label is clicked.
+	/// 디렉토리 라벨이 클릭될 때 발생합니다.
 	/// </summary>
-	/// <remarks>This event is triggered whenever a user clicks on a directory label in the UI.  Subscribers can
-	/// handle this event to perform actions such as navigating to the  directory or displaying additional
-	/// information.</remarks>
+	/// <remarks>
+	/// 사용자가 UI에서 디렉토리 라벨을 클릭할 때마다 발생합니다. 구독자는 이 이벤트를 처리하여 디렉토리로 이동하거나 추가 정보를 표시하는 등의 작업을 수행할 수 있습니다.
+	/// </remarks>
 	public event EventHandler<DirectoryLabelClickedEventArgs>? DirectoryLabelClicked;
 
 	/// <summary>
-	/// Gets the static height value.
+	/// 고정 높이 값을 가져옵니다.
 	/// </summary>
 	[Browsable(false)]
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 	public int StaticHeight => 20;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether the component is currently active.
+	/// 현재 컨트롤이 활성 상태인지 여부를 가져오거나 설정합니다.
 	/// </summary>
 	[Browsable(false)]
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-	public bool IsActive 
+	public bool IsActive
 	{
 		get => _isActive;
 		set
@@ -47,34 +58,46 @@ public sealed class DirectoryLabel : Control
 			_isActive = value;
 			Invalidate();
 		}
-	} 
+	}
+
+	// 디자인 모드 확인
+	private bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="DirectoryLabel"/> class with default styling and theme settings.
+	/// DirectoryLabel 클래스의 새 인스턴스를 초기화합니다. (기본 스타일 및 테마 적용)
 	/// </summary>
-	/// <remarks>This constructor sets the control styles for optimized double buffering and custom painting to
-	/// enhance rendering performance. It also applies the current theme settings for background color, foreground color,
-	/// and font, as specified in the application settings.</remarks>
+	/// <remarks>
+	/// 이 생성자는 최적화된 더블 버퍼링과 사용자 지정 페인팅을 위한 컨트롤 스타일을 설정하여 렌더링 성능을 향상시킵니다. 또한 애플리케이션 설정에 지정된 배경색, 전경색, 폰트 등 현재 테마 설정을 적용합니다.
+	/// </remarks>
 	public DirectoryLabel()
 	{
-		SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint, true);
+		SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.Selectable, true);
+		TabStop = true;
 
 		var settings = Settings.Instance;
-		var theme = settings.Theme;
 		Font = new Font(settings.UiFontFamily, 8.25f, FontStyle.Regular, GraphicsUnit.Point);
 		Height = StaticHeight;
+	}
 
-		if (DesignMode)
+	/// <inheritdoc />
+	protected override void OnCreateControl()
+	{
+		base.OnCreateControl();
+
+		if (IsReallyDesignMode)
 		{
 			// 디자인 모드에서 기본 값 설정
 			SetDirectoryInfo(10, 20, 1234567);
-			SetDriveInfo("C:", "Local Disk", 7654321);
+			SetDriveInfo("C:", "디자인모드", 76543212345);
 		}
 	}
 
 	/// <summary>
 	/// 왼쪽 폴더/파일 정보를 갱신합니다.
 	/// </summary>
+	/// <param name="dirCount">폴더 개수</param>
+	/// <param name="fileCount">파일 개수</param>
+	/// <param name="totalSize">전체 크기(바이트)</param>
 	public void SetDirectoryInfo(int dirCount, int fileCount, long totalSize)
 	{
 		_dirCount = dirCount;
@@ -86,6 +109,9 @@ public sealed class DirectoryLabel : Control
 	/// <summary>
 	/// 오른쪽 드라이브 정보를 갱신합니다.
 	/// </summary>
+	/// <param name="drvLabel">드라이브 레이블</param>
+	/// <param name="drvName">드라이브 이름</param>
+	/// <param name="drvAvailable">남은 용량(바이트)</param>
 	public void SetDriveInfo(string drvLabel, string drvName, long drvAvailable)
 	{
 		_drvLabel = drvLabel;
@@ -101,7 +127,7 @@ public sealed class DirectoryLabel : Control
 
 		var theme = Settings.Instance.Theme;
 		var g = e.Graphics;
-		g.Clear(IsActive ? theme.Hover : theme.Content);
+		g.Clear(IsActive ? theme.BackHover : theme.BackContent);
 
 		const string leftDirectory = " 디렉토리, ";
 		const string leftFile = " 파일 ";
@@ -119,6 +145,7 @@ public sealed class DirectoryLabel : Control
 		var y = (Height - Font.Height) / 2;
 		using var highlightBrush = new SolidBrush(theme.Accelerator);
 		using var textBrush = new SolidBrush(theme.Foreground);
+		using var boldFont = new Font(Font, FontStyle.Bold);
 
 		// [dirCount]
 		var sizeDirCount = g.MeasureString(leftDirCount, Font);
@@ -137,15 +164,15 @@ public sealed class DirectoryLabel : Control
 		g.DrawString(leftFile, Font, textBrush, x, y);
 		x += sizeFile.Width;
 		// ([totalSize])
-		var sizeTotal = g.MeasureString(lefttotalSize, new Font(Font, FontStyle.Bold));
-		g.DrawString(lefttotalSize, new Font(Font, FontStyle.Bold), textBrush, x, y);
+		var sizeTotal = g.MeasureString(lefttotalSize, boldFont);
+		g.DrawString(lefttotalSize, boldFont, textBrush, x, y);
 		x += sizeTotal.Width;
 		// 왼쪽 텍스트 전체 영역 저장
 		_leftRect = new Rectangle(0, 0, (int)x, Height);
 
 		// 오른쪽 텍스트 측정 및 그리기
 		var sizeDrvName = g.MeasureString(rightDrvName, Font);
-		var sizeDrvAvailable = g.MeasureString(rightDrvAvailable, new Font(Font, FontStyle.Bold));
+		var sizeDrvAvailable = g.MeasureString(rightDrvAvailable, boldFont);
 		var sizeAvailable = g.MeasureString(rightAvailable, Font);
 		var rx = Width - (sizeDrvName.Width + sizeDrvAvailable.Width + sizeAvailable.Width);
 		var rightStart = rx;
@@ -153,7 +180,7 @@ public sealed class DirectoryLabel : Control
 		g.DrawString(rightDrvName, Font, textBrush, rx, y);
 		rx += sizeDrvName.Width;
 		// [drvAvailable] (파란색, Bold)
-		g.DrawString(rightDrvAvailable, new Font(Font, FontStyle.Bold), highlightBrush, rx, y);
+		g.DrawString(rightDrvAvailable, boldFont, highlightBrush, rx, y);
 		rx += sizeDrvAvailable.Width;
 		// " 남음"
 		g.DrawString(rightAvailable, Font, textBrush, rx, y);
@@ -206,17 +233,15 @@ public sealed class DirectoryLabel : Control
 	protected override void OnMouseDown(MouseEventArgs e)
 	{
 		base.OnMouseDown(e);
+		Focus();
+		
 		if (e.Button != MouseButtons.Left)
 			return;
 
 		if (_leftRect.Contains(e.Location))
-		{
 			DirectoryLabelClicked?.Invoke(this, new DirectoryLabelClickedEventArgs(e.Location, DirectoryLabelClickedArea.Left));
-		}
 		else if (_rightRect.Contains(e.Location))
-		{
 			DirectoryLabelClicked?.Invoke(this, new DirectoryLabelClickedEventArgs(e.Location, DirectoryLabelClickedArea.Right));
-		}
 	}
 }
 
@@ -225,17 +250,9 @@ public sealed class DirectoryLabel : Control
 /// </summary>
 public enum DirectoryLabelClickedArea
 {
-	/// <summary>
-	/// Represents the left direction in a set of directional options.
-	/// </summary>
-	/// <remarks>This enumeration value can be used to specify a leftward direction in navigation or layout
-	/// contexts.</remarks>
+	/// <summary>왼쪽 영역을 나타냅니다.</summary>
 	Left,
-	/// <summary>
-	/// Represents a direction or alignment to the right.
-	/// </summary>
-	/// <remarks>This enumeration value can be used to specify rightward alignment or direction in various contexts,
-	/// such as text alignment, layout positioning, or navigation.</remarks>
+	/// <summary>오른쪽 영역을 나타냅니다.</summary>
 	Right
 }
 
@@ -245,12 +262,12 @@ public enum DirectoryLabelClickedArea
 public class DirectoryLabelClickedEventArgs(Point location, DirectoryLabelClickedArea area) : EventArgs
 {
 	/// <summary>
-	/// Gets the coordinates of the current location.
+	/// 클릭된 위치를 가져옵니다.
 	/// </summary>
 	public Point Location { get; } = location;
 
 	/// <summary>
-	/// Gets the area of the directory label that was clicked.
+	/// 클릭된 영역(왼쪽/오른쪽)을 가져옵니다.
 	/// </summary>
 	public DirectoryLabelClickedArea Area { get; } = area;
 }

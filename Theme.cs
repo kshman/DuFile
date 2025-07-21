@@ -2,14 +2,14 @@
 
 internal struct Theme
 {
-	public Color Background = Color.FromArgb(37, 37, 37);
 	public Color Foreground = Color.FromArgb(241, 241, 241);
+	public Color Background = Color.FromArgb(37, 37, 37);
+	public Color BackHover = Color.FromArgb(0, 122, 204);
+	public Color BackActive = Color.FromArgb(0, 150, 136);
+	public Color BackSelection = Color.FromArgb(63, 63, 70);
+	public Color BackContent = Color.FromArgb(20, 20, 20);
 	public Color Border = Color.FromArgb(63, 63, 70);
-	public Color Hover = Color.FromArgb(0, 122, 204);
-	public Color Accent = Color.FromArgb(0, 150, 136);
 	public Color Accelerator = Color.FromArgb(255, 128, 64);
-	public Color Selection = Color.FromArgb(63, 63, 70);
-	public Color Content = Color.FromArgb(20, 20, 20);
 
 	public Theme()
 	{
@@ -36,7 +36,7 @@ internal struct Theme
 			{
 				button.FlatStyle = FlatStyle.Flat;
 				button.FlatAppearance.BorderColor = Border;
-				button.FlatAppearance.MouseOverBackColor = Accent;
+				button.FlatAppearance.MouseOverBackColor = BackActive;
 			}
 			else if (control is TextBox textBox)
 			{

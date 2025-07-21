@@ -7,8 +7,8 @@ namespace DuFile;
 internal class Settings
 {
 	private static Settings? _instance;
-	private readonly string _connectionString;
 	private readonly Dictionary<string, string> _cache = [];
+	private string _connectionString = string.Empty;
 
 	public Theme Theme { get; } = new();
 
@@ -16,19 +16,19 @@ internal class Settings
 
 	private Settings()
 	{
-		if (LicenseManager.UsageMode == LicenseUsageMode.Designtime)
-		{
-			_connectionString = string.Empty;
-			return;
-		}
+		// 여기서 초기화를 했더니 디자이너가 맘대로 설정 파일을 갖고 논다
+	}
 
-		var appPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ksh");
+	public void Initialize(bool initializeDatabase)
+	{
+		var appPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ksh");
 		if (!Directory.Exists(appPath))
 			Directory.CreateDirectory(appPath);
-		var configPath = Path.Combine(appPath, "DuFile.config");
+		var configPath = Path.Combine(appPath, "DuFile.conf");
 		_connectionString = $"Data Source={configPath}";
 
-		InitializeDatabase();
+		if (initializeDatabase)
+			InitializeDatabase();
 	}
 
 	private void InitializeDatabase()
@@ -39,8 +39,7 @@ internal class Settings
 		var cmd = conn.CreateCommand();
 		cmd.CommandText = @"
 			CREATE TABLE IF NOT EXISTS Settings (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-                key TEXT UNIQUE NOT NULL,
+                key TEXT UNIQUE PRIMARY KEY NOT NULL,
                 value TEXT NOT NULL
             )";
 		cmd.ExecuteNonQuery();

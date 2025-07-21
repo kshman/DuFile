@@ -28,7 +28,7 @@ public sealed class FileSelection : ListView
 		var theme = settings.Theme;
 
 		Font = new Font(settings.FileFontFamily, settings.FileFontSize, FontStyle.Regular, GraphicsUnit.Point);
-		BackColor = theme.Content;
+		BackColor = theme.BackContent;
 		ForeColor = theme.Foreground;
 	}
 
@@ -76,19 +76,19 @@ public sealed class FileSelection : ListView
 
 		if (selected)
 		{
-			using var selBrush = new SolidBrush(theme.Accent);
+			using var selBrush = new SolidBrush(theme.BackActive);
 			g.FillRectangle(selBrush, bounds);
 		}
 		else
 		{
-			using var bgBrush = new SolidBrush(theme.Content);
+			using var bgBrush = new SolidBrush(theme.BackContent);
 			g.FillRectangle(bgBrush, bounds);
 		}
 
 		if (item.Icon != null)
 			g.DrawImage(item.Icon, bounds.Left + 3, bounds.Top + (bounds.Height - 16) / 2, 16, 16);
 
-		var textColor = selected ? theme.Content : theme.Foreground;
+		var textColor = selected ? theme.BackContent : theme.Foreground;
 		var font = Font;
 		var x = bounds.Left + 24;
 		var y = bounds.Top + (bounds.Height - font.Height) / 2;
@@ -118,7 +118,7 @@ public sealed class FileSelection : ListView
 				var barRect = new Rectangle(x, y + font.Height / 4, 80, font.Height / 2);
 				using (var barBg = new SolidBrush(theme.Border))
 					g.FillRectangle(barBg, barRect);
-				using (var barFg = new SolidBrush(theme.Accent))
+				using (var barFg = new SolidBrush(theme.BackActive))
 					g.FillRectangle(barFg, new Rectangle(barRect.Left, barRect.Top, (int)(barRect.Width * percent), barRect.Height));
 				x += 90;
 				TextRenderer.DrawText(g, drive.Available.FormatFileSize() + " 남음", font, new Point(x, y), textColor, TextFormatFlags.Right);
@@ -136,19 +136,19 @@ public sealed class FileSelection : ListView
 
 		if (selected)
 		{
-			using var selBrush = new SolidBrush(theme.Accent);
+			using var selBrush = new SolidBrush(theme.BackActive);
 			g.FillRectangle(selBrush, bounds);
 		}
 		else
 		{
-			using var bgBrush = new SolidBrush(theme.Content);
+			using var bgBrush = new SolidBrush(theme.BackContent);
 			g.FillRectangle(bgBrush, bounds);
 		}
 
 		if (item.Icon != null)
 			g.DrawImage(item.Icon, bounds.Left + 3, bounds.Top + (bounds.Height - 16) / 2, 16, 16);
 
-		var textColor = selected ? theme.Content : theme.Foreground;
+		var textColor = selected ? theme.BackContent : theme.Foreground;
 		var font = Font;
 		var x = bounds.Left + 24;
 		var y = bounds.Top + (bounds.Height - font.Height) / 2;
@@ -175,7 +175,7 @@ public sealed class FileSelection : ListView
 				var barRect = new Rectangle(x, y + font.Height / 4, 80, font.Height / 2);
 				using (var barBg = new SolidBrush(theme.Border))
 					g.FillRectangle(barBg, barRect);
-				using (var barFg = new SolidBrush(theme.Accent))
+				using (var barFg = new SolidBrush(theme.BackActive))
 					g.FillRectangle(barFg, new Rectangle(barRect.Left, barRect.Top, (int)(barRect.Width * percent), barRect.Height));
 				x += 90;
 				TextRenderer.DrawText(g, drive.Available.FormatFileSize() + " 남음", font, new Point(x, y), textColor, TextFormatFlags.Left);

@@ -40,6 +40,9 @@ public class FilePanel : UserControl
 
 	public FilePanel()
 	{
+		SetStyle(ControlStyles.Selectable, true);
+		TabStop = true;
+
 		InitializeComponent();
 		ApplyTheme();
 	}
@@ -76,7 +79,8 @@ public class FilePanel : UserControl
 		tabStrip.TabIndex = 0;
 		tabStrip.Text = "tabStrip";
 		tabStrip.SelectedIndexChanged += tabStrip_SelectedIndexChanged;
-		tabStrip.CloseButtonClicked += tabStrip_CloseButtonClicked;
+		tabStrip.CloseClicked += TabStripCloseClicked;
+		tabStrip.Clicked += tabStrip_Clicked;
 		// 
 		// fileInfoLabel
 		// 
@@ -117,7 +121,8 @@ public class FilePanel : UserControl
 		// 
 		// drvDirLabel
 		// 
-		drvDirLabel.Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Left;
+		drvDirLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+		drvDirLabel.Font = new Font("Microsoft Sans Serif", 8.25F);
 		drvDirLabel.Location = new Point(3, 0);
 		drvDirLabel.Name = "drvDirLabel";
 		drvDirLabel.Size = new Size(392, 20);
@@ -231,23 +236,23 @@ public class FilePanel : UserControl
 		dirPanel.BackColor = theme.Background;
 		dirPanel.ForeColor = theme.Foreground;
 
-		infoPanel.BackColor = theme.Content;
+		infoPanel.BackColor = theme.BackContent;
 		infoPanel.ForeColor = theme.Foreground;
 
 		editDirButton.ForeColor = theme.Foreground;
 		editDirButton.BackColor = theme.Background;
-		editDirButton.FlatAppearance.MouseOverBackColor = theme.Hover;
-		editDirButton.FlatAppearance.MouseDownBackColor = theme.Accent;
+		editDirButton.FlatAppearance.MouseOverBackColor = theme.BackHover;
+		editDirButton.FlatAppearance.MouseDownBackColor = theme.BackActive;
 
 		refreshButton.ForeColor = theme.Foreground;
 		refreshButton.BackColor = theme.Background;
-		refreshButton.FlatAppearance.MouseOverBackColor = theme.Hover;
-		refreshButton.FlatAppearance.MouseDownBackColor = theme.Accent;
+		refreshButton.FlatAppearance.MouseOverBackColor = theme.BackHover;
+		refreshButton.FlatAppearance.MouseDownBackColor = theme.BackActive;
 
 		historyButton.ForeColor = theme.Foreground;
 		historyButton.BackColor = theme.Background;
-		historyButton.FlatAppearance.MouseOverBackColor = theme.Hover;
-		historyButton.FlatAppearance.MouseDownBackColor = theme.Accent;
+		historyButton.FlatAppearance.MouseOverBackColor = theme.BackHover;
+		historyButton.FlatAppearance.MouseDownBackColor = theme.BackActive;
 	}
 
 	/// <inheritdoc />
@@ -282,15 +287,85 @@ public class FilePanel : UserControl
 		SetActivePanel(false);
 	}
 
-	private void tabStrip_CloseButtonClicked(object? sender, TabStripCloseEventArgs e)
+	private void TabStripCloseClicked(object? sender, TabStripCloseClickedEventArgs e)
 	{
 		tabStrip.RemoveTabAt(e.Index);
 	}
 
 	private void tabStrip_SelectedIndexChanged(object? sender, TabStripIndexChangedEventArgs e)
 	{
-		if (tabStrip.SelectedTab?.Tag is string path)
+		if (tabStrip.SelectedTab?.Value is string path)
 			NavigateTo(path);
+	}
+
+	private void tabStrip_Clicked(object? sender, TabStripClickedEventArgs e)
+	{
+		if (e.Element is TabStripElement.Tab or TabStripElement.None)
+		{
+			if (e.Button == MouseButtons.Right)
+			{
+				// 탭 메뉴 처리
+				var theme = Settings.Instance.Theme;
+				var menu = new ContextMenuStrip
+				{
+					BackColor = theme.Background,
+					ForeColor = theme.Foreground
+				};
+
+				if (e.Element == TabStripElement.Tab)
+				{
+					Debugs.Assert(e.Index >= 0);
+
+					// 선택 탭 닫기
+					var closeItem = new ToolStripMenuItem("닫기", null, (_, _) =>
+					{
+						tabStrip.RemoveTabAt(e.Index);
+					})
+					{
+						BackColor = theme.Background,
+						ForeColor = theme.Foreground
+					};
+					menu.Items.Add(closeItem);
+
+					// 다른 탭 닫기
+					if (tabStrip.Count > 1)
+					{
+						var closeOthersItem = new ToolStripMenuItem("다른 탭 닫기", null, (_, _) =>
+						{
+							tabStrip.RemoveOtherTabs(e.Index);
+						})
+						{
+							BackColor = theme.Background,
+							ForeColor = theme.Foreground
+						};
+						menu.Items.Add(closeOthersItem);
+					}
+
+					// 가로 줄 추가
+					menu.Items.Add(new ToolStripSeparator());
+				}
+
+				// 새 탭 추가
+				var newTabItem = new ToolStripMenuItem("새 탭 추가", null, (_, _) =>
+				{
+					AddTab(null, true);
+				})
+				{
+					BackColor = theme.Background,
+					ForeColor = theme.Foreground
+				};
+				menu.Items.Add(newTabItem);
+
+				menu.Show(tabStrip, e.Location);
+				e.Handled = true; // 메뉴가 처리했으므로 기본 동작은 하지 않음
+			}
+			else if (e is { Button: MouseButtons.Middle, Element: TabStripElement.Tab })
+			{
+				// 가운데 클릭으로 탭 닫기
+				tabStrip.RemoveTabAt(e.Index);
+				e.Handled = true;
+			}
+		}
 	}
 
 	private void pathTextBox_KeyDown(object? sender, KeyEventArgs e)
@@ -358,17 +433,8 @@ public class FilePanel : UserControl
 
 	private void breadcrumbPath_BreadcrumbPathClicked(object? sender, BreadcrumbPathClickedEventArgs e)
 	{
-
-	}
-
-	private void dirInfoLabel_Click(object? sender, EventArgs e)
-	{
-
-	}
-
-	private void drvInfoLabel_Click(object? sender, EventArgs e)
-	{
-
+		if (e.Button == MouseButtons.Left)
+			NavigateTo(e.Path);
 	}
 
 	private void fileInfoLabel_Click(object? sender, EventArgs e)
@@ -395,7 +461,7 @@ public class FilePanel : UserControl
 			_history.RemoveAt(0); // 최대 20개까지만 유지
 
 		// 탭 갱신
-		tabStrip.SetTabText(tabStrip.SelectedIndex, info.Name, directory);
+		tabStrip.SetTabTextAt(tabStrip.SelectedIndex, info.Name, directory);
 
 		// 리스트 갱신
 		//... 인데 리스트가 없으니 일단 다른것부터
@@ -428,7 +494,7 @@ public class FilePanel : UserControl
 		{
 			// 아니 왜...?
 		}
-		
+
 		// 정보 갱신
 		drvDirLabel.SetDirectoryInfo(dirCount, fileCount, totalSize);
 	}
@@ -436,7 +502,7 @@ public class FilePanel : UserControl
 	public void SetActivePanel(bool isActive)
 	{
 		_isActivePanel = isActive;
-		workPanel.BorderColor = isActive ? Settings.Instance.Theme.Hover : Settings.Instance.Theme.Border;
+		workPanel.BorderColor = isActive ? Settings.Instance.Theme.BackHover : Settings.Instance.Theme.Border;
 		PanelActivated?.Invoke(this, new FilePanelActiveEventArgs(this, isActive));
 	}
 
@@ -449,7 +515,7 @@ public class FilePanel : UserControl
 		pathTextBox.Visible = true;
 		pathTextBox.Focus();
 		pathTextBox.SelectAll();
-		editDirButton.BackColor = Settings.Instance.Theme.Accent;
+		editDirButton.BackColor = Settings.Instance.Theme.BackActive;
 	}
 
 	// 결로 편집 모드 나감
@@ -462,28 +528,22 @@ public class FilePanel : UserControl
 	}
 
 	// 새탭 추가
-	public void AddTab(string? directory)
+	public void AddTab(string? directory, bool force = false)
 	{
-		if (!Directory.Exists(directory))
+		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
 			directory = Directory.Exists(_currentDirectory) ? _currentDirectory : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 
-		var index = tabStrip.GetTabIndexByTag(directory);
-		if (index >= 0)
+		var index = tabStrip.GetTabIndexByValue(directory);
+		if (!force && index >= 0)
 		{
 			tabStrip.SelectedIndex = index;
 			return;
 		}
 
 		var di = new DirectoryInfo(directory);
-		index = tabStrip.AddTabWithTag(di.Name, di.FullName);
+		index = tabStrip.AddTab(di.Name, di.FullName);
 		if (index >= 0)
 			tabStrip.SelectedIndex = index;
-	}
-
-	// 현재 탭 제거
-	public void RemoveCurrentTab(int index)
-	{
-		tabStrip.RemoveTabAt(tabStrip.SelectedIndex);
 	}
 
 	// 다음 탭으로 이동
@@ -545,7 +605,7 @@ public class FilePanel : UserControl
 						var d = new DirectoryInfo(tag);
 						if (!d.Exists)
 							continue; // 유효하지 않은 경로는 무시
-						tabStrip.AddTabWithTag(d.Name, tag);
+						tabStrip.AddTab(d.Name, tag);
 					}
 
 					if (tabStrip.Count > 0)
@@ -560,7 +620,7 @@ public class FilePanel : UserControl
 
 		// 탭이 없다?! 그렇다면 기본 경로로 탭을 하나 만든다
 		var documents = new DirectoryInfo(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
-		tabStrip.AddTabWithTag(documents.Name, documents.FullName);
+		tabStrip.AddTab(documents.Name, documents.FullName);
 	}
 
 	// 탭 목록 저장. Dispose에서 호출된다.
@@ -574,7 +634,7 @@ public class FilePanel : UserControl
 
 		var settings = Settings.Instance;
 		var prefix = $"Panel{PanelIndex}";
-		var tags = tabStrip.GetTagList();
+		var tags = tabStrip.GetValueList();
 
 		settings.SetInt($"{prefix}Active", tabStrip.SelectedIndex);
 		settings.SetString($"{prefix}Tabs", tags.Count > 0 ? string.Join("|", tags) : string.Empty);

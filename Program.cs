@@ -6,7 +6,7 @@ global using System.IO;
 global using System.Linq;
 global using DuFile.Command;
 global using DuFile.Dowa;
-global using DebugOut = System.Diagnostics.Debug;
+global using Debugs = System.Diagnostics.Debug;
 global using Resources = DuFile.Properties.Resources;
 
 namespace DuFile;
@@ -19,11 +19,14 @@ internal static class Program
     [STAThread]
     static void Main()
     {
+        Settings.Instance.Initialize(true);
         Settings.Instance.Load();
+ 
         // To customize application configuration such as set high DPI settings or default font,
 		// see https://aka.ms/applicationconfiguration.
 		ApplicationConfiguration.Initialize();
 		Application.Run(new Windows.MainForm());
-        Settings.Instance.Save();
+        
+		Settings.Instance.Save();
 	}
 }

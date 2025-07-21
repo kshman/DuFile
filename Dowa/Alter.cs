@@ -50,7 +50,7 @@ internal static class Alter
 		}
 		catch
 		{
-			DebugOut.WriteLine($"잘못된 키 변환: {input}");
+			Debugs.WriteLine($"잘못된 키 변환: {input}");
 			return Keys.None;
 		}
 	}

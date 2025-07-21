@@ -29,7 +29,7 @@ public sealed class FuncBar : Control
 	/// <inheritdoc/>
 	public FuncBar()
 	{
-		DebugOut.Assert(MaxFuncCount == FuncNumbers.Length);
+		Debugs.Assert(MaxFuncCount == FuncNumbers.Length);
 
 		SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
 
@@ -74,8 +74,8 @@ public sealed class FuncBar : Control
 			var num = FuncNumbers[i];
 
 			var fill =
-				_pressedIndex == i ? theme.Accent :
-				_hoverIndex == i ? theme.Hover :
+				_pressedIndex == i ? theme.BackActive :
+				_hoverIndex == i ? theme.BackHover :
 				theme.Border;
 
 			using (var brush = new SolidBrush(fill))

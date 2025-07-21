@@ -39,6 +39,9 @@ public class BreadcrumbPath : Control
 	/// </summary>
 	public event EventHandler<BreadcrumbPathClickedEventArgs>? BreadcrumbPathClicked;
 
+	// 디자인 모드 확인
+	bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="BreadcrumbPath"/> class with default settings.
 	/// </summary>
@@ -46,12 +49,18 @@ public class BreadcrumbPath : Control
 	/// height and path. The control is not focusable by default.</remarks>
 	public BreadcrumbPath()
 	{
-		SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
-		TabStop = false;
+		SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.Selectable, true);
+		TabStop = true;
 		Height = StaticHeight;
 		Path = "";
+	}
 
-		if (DesignMode)
+	/// <inheritdoc />
+	protected override void OnCreateControl()
+	{
+		base.OnCreateControl();
+
+		if (IsReallyDesignMode)
 		{
 			// 디자인 모드에서 기본 경로 설정
 			Path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
@@ -148,7 +157,7 @@ public class BreadcrumbPath : Control
 		if (showEllipsis)
 		{
 			_ellipsisRect = new Rectangle(x, 0, ellipsisWidth, h);
-			DrawEllipsis(e.Graphics, _ellipsisRect.Value, font, _hoverEllipsis ? theme.Content : theme.Background, theme.Foreground);
+			DrawEllipsis(e.Graphics, _ellipsisRect.Value, font, _hoverEllipsis ? theme.BackContent : theme.Background, theme.Foreground);
 			x += ellipsisWidth;
 		}
 
@@ -159,7 +168,7 @@ public class BreadcrumbPath : Control
 			var rect = new Rectangle(x, 0, partW, h);
 			_partRects.Add(rect);
 
-			var fill = (i == _hoverIndex) ? theme.Content : theme.Background;
+			var fill = (i == _hoverIndex) ? theme.BackContent : theme.Background;
 			using (var brush = new SolidBrush(fill))
 				e.Graphics.FillRectangle(brush, rect);
 
@@ -257,6 +266,7 @@ public class BreadcrumbPath : Control
 	protected override void OnMouseDown(MouseEventArgs e)
 	{
 		base.OnMouseDown(e);
+		Focus();
 
 		// ... 클릭
 		if (_hoverEllipsis && _ellipsisRect != null)

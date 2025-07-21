@@ -49,8 +49,7 @@ public sealed class VerticalBar : Control
 	/// </summary>
 	public VerticalBar()
 	{
-		SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer,
-			true);
+		SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.Selectable, true);
 
 		var theme = Settings.Instance.Theme;
 
@@ -95,8 +94,8 @@ public sealed class VerticalBar : Control
 			var def = _buttonDefs[i];
 
 			var fill =
-				_pressedIndex == i ? theme.Accent :
-				_hoverIndex == i ? theme.Hover :
+				_pressedIndex == i ? theme.BackActive :
+				_hoverIndex == i ? theme.BackHover :
 				theme.Background;
 
 			using (var brush = new SolidBrush(fill))
@@ -161,6 +160,7 @@ public sealed class VerticalBar : Control
 	protected override void OnMouseDown(MouseEventArgs e)
 	{
 		base.OnMouseDown(e);
+		Focus();
 
 		_pressedIndex = null;
 		for (var i = 0; i < _buttonRects.Length; i++)

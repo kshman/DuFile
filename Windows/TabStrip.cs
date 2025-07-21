@@ -6,35 +6,46 @@
 /// </summary>
 public class TabStrip : Control
 {
+	// 현재 선택된 탭 인덱스
 	private int _selectedIndex = -1;
 
+	// 닫기 버튼 크기
 	private int _closeButtonSize = 14;
+	// 아이콘 크기
 	private int _iconSize = 16;
 
+	// 탭 최소/최대 너비
 	private int _minTabWidth = 60;
 	private int _maxTabWidth = 180;
+	// 스크롤 오프셋
 	private int _scrollOffset /*= 0*/;
+	// 스크롤 버튼 너비
 	private int _scrollButtonWidth = 22;
+	// 스크롤 버튼 표시 여부
 	private bool _showScrollButtons;
 
+	// 탭 목록 버튼 영역
 	private Rectangle _tabListButtonRect = Rectangle.Empty;
+	// 탭 목록 메뉴
 	private ContextMenuStrip? _tabListMenu;
 
 	/// <summary>
 	/// TabStrip에 표시되는 탭 목록을 가져옵니다.
 	/// </summary>
-	[Category("TabStrip")]
-	[DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
+	//[Category("TabStrip")]
+	//[DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
+	[Browsable(false)]
+	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 	public List<TabItem> Tabs { get; } = [];
 
 	/// <summary>
-	/// Gets the number of tabs currently available.
+	/// 현재 탭 개수를 가져옵니다.
 	/// </summary>
 	[Browsable(false)]
 	public int Count => Tabs.Count;
 
 	/// <summary>
-	/// Gets the currently selected tab item.
+	/// 현재 선택된 탭을 가져옵니다.
 	/// </summary>
 	[Browsable(false)]
 	public TabItem? SelectedTab => _selectedIndex >= 0 && _selectedIndex < Tabs.Count ? Tabs[_selectedIndex] : null;
@@ -95,13 +106,6 @@ public class TabStrip : Control
 	}
 
 	/// <summary>
-	/// Gets or sets the text content stored by the component.
-	/// </summary>
-	[Browsable(false)]
-	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-	public string Value { get; set; } = string.Empty;
-
-	/// <summary>
 	/// 선택된 탭이 변경될 때 발생합니다.
 	/// </summary>
 	[Category("TabStrip")]
@@ -111,41 +115,50 @@ public class TabStrip : Control
 	/// 선택된 탭의 닫기 버튼이 클릭될 때 발생합니다.
 	/// </summary>
 	[Category("TabStrip")]
-	public event EventHandler<TabStripCloseEventArgs>? CloseButtonClicked;
+	public event EventHandler<TabStripCloseClickedEventArgs>? CloseClicked;
+
+	/// <summary>
+	/// 탭, 닫기, 스크롤, 목록 등 클릭 시 발생하는 이벤트입니다.
+	/// </summary>
+	[Category("TabStrip")]
+	public event EventHandler<TabStripClickedEventArgs>? Clicked;
+
+	// 디자인 모드 확인
+	bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
 
 	/// <summary>
 	/// TabStrip의 인스턴스를 초기화합니다.
 	/// </summary>
 	public TabStrip()
 	{
-		SetStyle(ControlStyles.ResizeRedraw | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+		SetStyle(ControlStyles.ResizeRedraw | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.Selectable, true);
 		Height = 28;
 	}
 
-	/// <summary>
-	/// 새 탭을 추가합니다.
-	/// </summary>
-	/// <param name="text">탭에 표시할 텍스트</param>
-	/// <param name="icon">탭에 표시할 아이콘(선택)</param>
-	public int AddTab(string text, Image? icon = null)
+	/// <inheritdoc />
+	protected override void OnCreateControl()
 	{
-		Tabs.Add(new TabItem { Text = text, Icon = icon });
-		if (_selectedIndex == -1)
-			SelectedIndex = 0;
-		Invalidate();
-		return Tabs.Count - 1; // 새로 추가된 탭의 인덱스 반환
+		base.OnCreateControl();
+
+		if (IsReallyDesignMode)
+		{
+			// 디자인 모드에서 샘플 탭 추가
+			AddTab("디자인모드");
+			AddTab("추가 탭");
+			AddTab("하나 더");
+		}
 	}
 
 	/// <summary>
-	/// Adds a new tab with the specified text, tag, and optional icon to the collection of tabs.
+	/// 지정한 텍스트, 값, 아이콘으로 새 탭을 추가합니다.
 	/// </summary>
-	/// <remarks>If this is the first tab being added, it automatically becomes the selected tab.</remarks>
-	/// <param name="text">The text to display on the tab. Cannot be null or empty.</param>
-	/// <param name="tag">An optional object associated with the tab for identification or data storage. Can be null.</param>
-	/// <param name="icon">An optional image to display on the tab. Can be null.</param>
-	public int AddTabWithTag(string text, object? tag, Image? icon = null)
+	/// <param name="text">탭에 표시할 텍스트</param>
+	/// <param name="value">탭에 연결할 값(선택)</param>
+	/// <param name="icon">탭에 표시할 아이콘(선택)</param>
+	/// <returns>추가된 탭의 인덱스</returns>
+	public int AddTab(string text, object? value = null, Image? icon = null)
 	{
-		Tabs.Add(new TabItem { Text = text, Icon = icon, Tag = tag });
+		Tabs.Add(new TabItem { Text = text, Icon = icon, Value = value });
 		if (_selectedIndex == -1)
 			SelectedIndex = 0;
 		Invalidate();
@@ -171,11 +184,28 @@ public class TabStrip : Control
 	}
 
 	/// <summary>
-	/// Retrieves the <see cref="TabItem"/> at the specified index in the collection.
+	/// Removes all tabs except the tab at the specified index.
 	/// </summary>
-	/// <param name="index">The zero-based index of the <see cref="TabItem"/> to retrieve.</param>
-	/// <returns>The <see cref="TabItem"/> at the specified index, or <see langword="null"/> if the index is out of range.</returns>
-	public TabItem? GetTabItemAt(int index)
+	/// <remarks>If the specified index is out of range or if there is only one tab, no action is taken.  After
+	/// removal, the specified tab becomes the selected tab.</remarks>
+	/// <param name="index">The zero-based index of the tab to retain. Must be within the range of existing tabs.</param>
+	public void RemoveOtherTabs(int index)
+	{
+		if (Tabs.Count <= 1 || index < 0 || index >= Tabs.Count)
+			return; // 최소 1개 탭은 유지
+
+		var selectedTab = Tabs[index];
+		Tabs.Clear();
+		Tabs.Add(selectedTab);
+		SelectedIndex = 0;  // Invalidate()는 이 안에서 호출
+	}
+
+	/// <summary>
+	/// 지정한 인덱스의 탭을 반환합니다.
+	/// </summary>
+	/// <param name="index">탭 인덱스</param>
+	/// <returns>탭 객체 또는 null</returns>
+	public TabItem? GetTabAt(int index)
 	{
 		if (index < 0 || index >= Tabs.Count)
 			return null;
@@ -183,72 +213,71 @@ public class TabStrip : Control
 	}
 
 	/// <summary>
-	/// Retrieves the first <see cref="TabItem"/> from the collection that matches the specified tag.
+	/// 지정한 값과 일치하는 첫 번째 탭의 인덱스를 반환합니다.
 	/// </summary>
-	/// <param name="tag">The tag to search for. Can be <see langword="null"/>.</param>
-	/// <returns>The first <see cref="TabItem"/> with a matching tag, or <see langword="null"/> if no match is found.</returns>
-	public int GetTabIndexByTag(object? tag)
+	/// <param name="value">탭에 연결된 값</param>
+	/// <returns>탭 인덱스 또는 -1</returns>
+	public int GetTabIndexByValue(object? value)
 	{
 		for (var i = 0; i < Tabs.Count; i++)
 		{
-			if (Equals(Tabs[i].Tag, tag))
+			if (Equals(Tabs[i].Value, value))
 				return i;
 		}
 		return -1; // 찾지 못함
 	}
 
 	/// <summary>
-	/// Sets the text and optional tag for a tab at the specified index.
+	/// 지정한 인덱스의 탭 텍스트와 태그를 설정합니다.
 	/// </summary>
-	/// <remarks>If the specified <paramref name="index"/> is out of range, the method does nothing.</remarks>
-	/// <param name="index">The zero-based index of the tab to update. Must be within the range of existing tabs.</param>
-	/// <param name="text">The new text to display on the tab.</param>
-	/// <param name="tag">An optional object to associate with the tab. Can be <see langword="null"/>.</param>
-	public void SetTabText(int index, string text, object? tag = null)
+	/// <param name="index">탭 인덱스</param>
+	/// <param name="text">새 텍스트</param>
+	/// <param name="tag">연결할 태그(선택)</param>
+	public void SetTabTextAt(int index, string text, object? tag = null)
 	{
 		if (index < 0 || index >= Tabs.Count)
 			return;
 
 		var tab = Tabs[index];
 		tab.Text = text;
-		tab.Tag = tag;
+		tab.Value = tag;
 		Invalidate();
 	}
 
 	/// <summary>
-	/// Retrieves a list of non-empty text values from the collection of tabs.
+	/// 모든 탭의 텍스트 목록을 반환합니다.
 	/// </summary>
-	/// <returns>A list of strings containing the text of each tab that has a non-empty text value.</returns>
+	/// <returns>텍스트 목록</returns>
 	public List<string> GetTextList() =>
 		(from tab in Tabs where !string.IsNullOrEmpty(tab.Text) select tab.Text).ToList();
 
 	/// <summary>
-	/// Retrieves a list of non-null tags from the collection of tabs.
+	/// 모든 탭의 값 목록을 반환합니다.
 	/// </summary>
-	/// <returns>A list of objects representing the tags of tabs that have non-null tags. The list will be empty if no tabs have
-	/// tags.</returns>
-	public List<object> GetTagList() =>
-		(from tab in Tabs where tab.Tag != null select tab.Tag).ToList();
+	/// <returns>값 목록</returns>
+	public List<object> GetValueList() =>
+		(from tab in Tabs where tab.Value != null select tab.Value).ToList();
 
 	/// <inheritdoc />
 	protected override void OnPaint(PaintEventArgs e)
 	{
 		base.OnPaint(e);
-		e.Graphics.Clear(BackColor);
 
 		var settings = Settings.Instance;
+		var theme = settings.Theme;
+		e.Graphics.Clear(theme.Background);
 
 		const int tabListBtnW = 22;
 		_tabListButtonRect = new Rectangle(2, 2, tabListBtnW, Height - 4);
 
-		using (Brush b = new SolidBrush(Color.LightGray))
+		using (Brush b = new SolidBrush(theme.BackContent))
 			e.Graphics.FillRectangle(b, _tabListButtonRect);
-		ControlPaint.DrawBorder(e.Graphics, _tabListButtonRect, Color.Gray, ButtonBorderStyle.Solid);
+		ControlPaint.DrawBorder(e.Graphics, _tabListButtonRect, theme.Border, ButtonBorderStyle.Solid);
 
 		// "≡" 문자로 목록 버튼 아이콘
 		using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
 		using (var font = new Font(settings.UiFontFamily, 13, FontStyle.Bold))
-		using (Brush brush = new SolidBrush(Color.Black))
+		using (Brush brush = new SolidBrush(theme.Foreground))
 		{
 			e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
 			e.Graphics.DrawString("≡", font, brush, _tabListButtonRect, sf);
@@ -278,10 +307,10 @@ public class TabStrip : Control
 			var tabRect = new Rectangle(x, 2, tabWidth, Height - 4);
 			tab.Bounds = tabRect;
 
-			using (Brush b = new SolidBrush(i == _selectedIndex ? Color.LightSteelBlue : Color.Gainsboro))
+			using (Brush b = new SolidBrush(i == _selectedIndex ? theme.BackSelection : theme.Background))
 				e.Graphics.FillRectangle(b, tabRect);
 
-			ControlPaint.DrawBorder(e.Graphics, tabRect, Color.Gray, ButtonBorderStyle.Solid);
+			ControlPaint.DrawBorder(e.Graphics, tabRect, theme.Border, ButtonBorderStyle.Solid);
 
 			var drawX = tabRect.Left + 8;
 			if (tab.Icon != null)
@@ -295,7 +324,7 @@ public class TabStrip : Control
 				textRect.Width -= (_closeButtonSize + 6);
 
 			// 텍스트 ... 처리
-			TextRenderer.DrawText(e.Graphics, tab.Text, Font, textRect, ForeColor,
+			TextRenderer.DrawText(e.Graphics, tab.Text, Font, textRect, theme.Foreground,
 				TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
 
 			// 닫기 버튼
@@ -308,15 +337,16 @@ public class TabStrip : Control
 					_closeButtonSize
 				);
 				tab.CloseButtonBounds = closeRect;
-				using (Brush closeBrush = new SolidBrush(Color.White))
+				using (Brush closeBrush = new SolidBrush(theme.Accelerator))
 					e.Graphics.FillEllipse(closeBrush, closeRect);
-				using (var pen = new Pen(Color.DimGray, 2))
+				using (var pen = new Pen(theme.Foreground, 2))
 				{
 					const int pad = 3;
 					e.Graphics.DrawLine(pen, closeRect.Left + pad, closeRect.Top + pad, closeRect.Right - pad, closeRect.Bottom - pad);
 					e.Graphics.DrawLine(pen, closeRect.Right - pad, closeRect.Top + pad, closeRect.Left + pad, closeRect.Bottom - pad);
 				}
-				e.Graphics.DrawEllipse(Pens.Gray, closeRect);
+				using (var pen = new Pen(theme.Border))
+					e.Graphics.DrawEllipse(pen, closeRect);
 			}
 			else
 			{
@@ -340,6 +370,7 @@ public class TabStrip : Control
 		}
 	}
 
+	// 스크롤 버튼 그리기
 	private static void DrawScrollButton(Graphics g, Rectangle rect, bool right, bool enabled)
 	{
 		var bg = enabled ? Color.LightGray : Color.Gainsboro;
@@ -356,6 +387,7 @@ public class TabStrip : Control
 			g.FillPolygon(f, points);
 	}
 
+	// 모든 탭의 총 너비 계산
 	private int GetTotalTabsWidth()
 	{
 		var x = 0;
@@ -372,13 +404,27 @@ public class TabStrip : Control
 		return x;
 	}
 
+	// 클릭 이벤트 처리
+	private bool InvokeClicked(MouseEventArgs mArgs, TabStripElement element, int index = -1)
+	{
+		if (Clicked == null)
+			return false; // 이벤트 핸들러가 없으면 처리하지 않음
+		var args = new TabStripClickedEventArgs(mArgs.Location, mArgs.Button, element, index);
+		Clicked.Invoke(this, args);
+		return args.Handled;
+	}
+
 	/// <inheritdoc />
 	protected override void OnMouseDown(MouseEventArgs e)
 	{
+		base.OnMouseDown(e);
+		Focus();
+
 		// 탭 목록 버튼 클릭 체크
 		if (_tabListButtonRect.Contains(e.Location))
 		{
-			ShowTabListMenu();
+			if (!InvokeClicked(e, TabStripElement.List) && e.Button == MouseButtons.Left)
+				ShowTabListMenu();
 			return;
 		}
 
@@ -392,17 +438,23 @@ public class TabStrip : Control
 
 			if (leftBtn.Contains(e.Location) && _scrollOffset > 0)
 			{
-				_scrollOffset = Math.Max(0, _scrollOffset - scrollStep);
-				Invalidate();
+				if (!InvokeClicked(e, TabStripElement.LeftScroll))
+				{
+					_scrollOffset = Math.Max(0, _scrollOffset - scrollStep);
+					Invalidate();
+				}
 				return;
 			}
 
 			if (rightBtn.Contains(e.Location))
 			{
-				var totalTabsWidth = GetTotalTabsWidth();
-				var maxOffset = Math.Max(0, totalTabsWidth - (Width - _scrollButtonWidth * 2 - tabListBtnW - 4));
-				_scrollOffset = Math.Min(maxOffset, _scrollOffset + scrollStep);
-				Invalidate();
+				if (!InvokeClicked(e, TabStripElement.RightScroll))
+				{
+					var totalTabsWidth = GetTotalTabsWidth();
+					var maxOffset = Math.Max(0, totalTabsWidth - (Width - _scrollButtonWidth * 2 - tabListBtnW - 4));
+					_scrollOffset = Math.Min(maxOffset, _scrollOffset + scrollStep);
+					Invalidate();
+				}
 				return;
 			}
 		}
@@ -411,21 +463,29 @@ public class TabStrip : Control
 		for (var i = 0; i < Tabs.Count; i++)
 		{
 			var tab = Tabs[i];
+
 			// 닫기 버튼
-			if (i == _selectedIndex && tab.CloseButtonBounds.Contains(e.Location) && Tabs.Count > 1)
+			if (e.Button == MouseButtons.Left && Tabs.Count > 1 && i == _selectedIndex && tab.CloseButtonBounds.Contains(e.Location))
 			{
-				CloseButtonClicked?.Invoke(this, new TabStripCloseEventArgs(i));
+				if (!InvokeClicked(e, TabStripElement.Close, i))
+					CloseClicked?.Invoke(this, new TabStripCloseClickedEventArgs(i));
 				return;
 			}
+
 			// 탭
 			if (tab.Bounds.Contains(e.Location))
 			{
-				SelectedIndex = i;
-				break;
+				if (!InvokeClicked(e, TabStripElement.Tab, i))
+					SelectedIndex = i;
+				return;
 			}
 		}
+
+		// 빈 곳 클릭
+		InvokeClicked(e, TabStripElement.None);
 	}
 
+	// 탭 목록 메뉴 표시
 	private void ShowTabListMenu()
 	{
 		if (_tabListMenu != null)
@@ -492,9 +552,9 @@ public class TabStrip : Control
 		public Rectangle CloseButtonBounds { get; set; }
 
 		/// <summary>
-		/// Gets or sets an object that contains data about the control.
+		/// 탭에 연결된 데이터를 가져오거나 설정합니다.
 		/// </summary>
-		public object? Tag { get; set; }
+		public object? Value { get; set; }
 
 		/// <inheritdoc />
 		public override string ToString() => Text;
@@ -504,7 +564,7 @@ public class TabStrip : Control
 /// <summary>
 /// 탭 닫기 버튼 클릭 이벤트 인수입니다.
 /// </summary>
-public class TabStripCloseEventArgs(int index) : EventArgs
+public class TabStripCloseClickedEventArgs(int index) : EventArgs
 {
 	/// <summary>
 	/// 닫기 버튼이 클릭된 탭의 인덱스입니다.
@@ -513,12 +573,10 @@ public class TabStripCloseEventArgs(int index) : EventArgs
 }
 
 /// <summary>
-/// Provides data for the event that occurs when the index of a tab strip changes.
+/// 탭 인덱스 변경 이벤트 인수입니다.
 /// </summary>
-/// <remarks>This class contains information about the previous and new index of the tab strip, allowing event
-/// handlers to determine how the tab selection has changed.</remarks>
-/// <param name="prevIndex"></param>
-/// <param name="index"></param>
+/// <param name="prevIndex">이전 인덱스</param>
+/// <param name="index">새 인덱스</param>
 public class TabStripIndexChangedEventArgs(int prevIndex, int index) : EventArgs
 {
 	/// <summary>
@@ -530,4 +588,54 @@ public class TabStripIndexChangedEventArgs(int prevIndex, int index) : EventArgs
 	/// 새 탭 인덱스입니다.
 	/// </summary>
 	public int Index { get; } = index;
+}
+
+/// <summary>
+/// TabStrip의 클릭 요소 종류입니다.
+/// </summary>
+public enum TabStripElement
+{
+	/// <summary>아무것도 아님</summary>
+	None,
+	/// <summary>목록 버튼</summary>
+	List,
+	/// <summary>왼쪽 스크롤 버튼</summary>
+	LeftScroll,
+	/// <summary>오른쪽 스크롤 버튼</summary>
+	RightScroll,
+	/// <summary>닫기 버튼</summary>
+	Close,
+	/// <summary>탭</summary>
+	Tab,
+}
+
+/// <summary>
+/// TabStrip 클릭 이벤트 인수입니다.
+/// </summary>
+public class TabStripClickedEventArgs(Point location, MouseButtons button, TabStripElement element, int index = -1) : EventArgs
+{
+	/// <summary>
+	/// 클릭 위치
+	/// </summary>
+	public Point Location { get; } = location;
+
+	/// <summary>
+	/// 마우스 버튼
+	/// </summary>
+	public MouseButtons Button { get; } = button;
+
+	/// <summary>
+	/// 클릭된 요소
+	/// </summary>
+	public TabStripElement Element { get; set; } = element;
+
+	/// <summary>
+	/// 클릭된 탭 인덱스
+	/// </summary>
+	public int Index { get; } = index;
+
+	/// <summary>
+	/// 이벤트가 처리되었는지 여부 (true면 기본 동작 안함)
+	/// </summary>
+	public bool Handled { get; set; } = false;
 }

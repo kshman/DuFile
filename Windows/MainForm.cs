@@ -11,8 +11,12 @@ namespace DuFile.Windows;
 /// the text, command, shortcut, and submenus for each menu item.</remarks>
 public partial class MainForm : Form
 {
+	public static MainForm? Instance { get; private set; }
+
 	public MainForm()
 	{
+		Instance ??= this;
+
 		InitializeComponent();
 		IntiializeMenu();
 		ApplyTheme();
