@@ -15,8 +15,12 @@ public sealed class DirectoryLabel : Control
 	private string _drvLabel = string.Empty;
 	// 드라이브 이름
 	private string _drvName = string.Empty;
+	// 드라이브 총 용량
+	private string _drvTotal = string.Empty;
 	// 드라이브 남은 용량 문자열
 	private string _drvAvailable = string.Empty;
+	// 드라이브 파티션
+	private string _drvPartition = string.Empty;
 	// 활성화 상태
 	private bool _isActive;
 
@@ -88,7 +92,7 @@ public sealed class DirectoryLabel : Control
 		{
 			// 디자인 모드에서 기본 값 설정
 			SetDirectoryInfo(10, 20, 1234567);
-			SetDriveInfo("C:", "디자인모드", 76543212345);
+			SetDriveInfo(null);
 		}
 	}
 
@@ -107,16 +111,27 @@ public sealed class DirectoryLabel : Control
 	}
 
 	/// <summary>
-	/// 오른쪽 드라이브 정보를 갱신합니다.
+	/// 오른쪽 드라이브 정보를 갱신합니다. <see cref="DriveInfo"/> 
 	/// </summary>
-	/// <param name="drvLabel">드라이브 레이블</param>
-	/// <param name="drvName">드라이브 이름</param>
-	/// <param name="drvAvailable">남은 용량(바이트)</param>
-	public void SetDriveInfo(string drvLabel, string drvName, long drvAvailable)
+	/// <param name="drive">드라이브 정보가 담긴 <see cref="DriveInfo"/> 오브젝트</param>
+	public void SetDriveInfo(DriveInfo? drive)
 	{
-		_drvLabel = drvLabel;
-		_drvName = drvName;
-		_drvAvailable = drvAvailable.FormatFileSize();
+		if (drive == null)
+		{
+			_drvLabel = "알 수 없음";
+			_drvName = "??";
+			_drvAvailable = "0 KB";
+			_drvTotal = "0 KB";
+			_drvPartition = "알 수 없음";
+		}
+		else
+		{
+			_drvLabel = drive.VolumeLabel;
+			_drvName = drive.Name.TrimEnd('\\');
+			_drvAvailable = drive.AvailableFreeSpace.FormatFileSize();
+			_drvTotal = drive.TotalSize.FormatFileSize();
+			_drvPartition = drive.DriveFormat;
+		}
 		Invalidate();
 	}
 

@@ -22,6 +22,7 @@ public class FilePanel : UserControl
 	private Button refreshButton;
 	private Button editDirButton;
 	private Panel infoPanel;
+	private FileSelection fileSelection;
 #nullable restore
 
 	private string _currentDirectory = string.Empty;
@@ -62,6 +63,7 @@ public class FilePanel : UserControl
 		editDirButton = new Button();
 		breadcrumbPath = new BreadcrumbPath();
 		pathTextBox = new TextBox();
+		fileSelection = new FileSelection();
 		workPanel.SuspendLayout();
 		infoPanel.SuspendLayout();
 		dirPanel.SuspendLayout();
@@ -69,6 +71,7 @@ public class FilePanel : UserControl
 		// 
 		// tabStrip
 		// 
+		tabStrip.ActiveTabHighlightHeight = 2;
 		tabStrip.CloseButtonSize = 14;
 		tabStrip.Dock = DockStyle.Top;
 		tabStrip.IconSize = 16;
@@ -102,6 +105,7 @@ public class FilePanel : UserControl
 		workPanel.BorderColor = Color.Gray;
 		workPanel.BorderStyle = BorderStyle.FixedSingle;
 		workPanel.BorderThickness = 1;
+		workPanel.Controls.Add(fileSelection);
 		workPanel.Controls.Add(infoPanel);
 		workPanel.Controls.Add(dirPanel);
 		workPanel.Controls.Add(fileInfoLabel);
@@ -209,6 +213,22 @@ public class FilePanel : UserControl
 		pathTextBox.KeyDown += pathTextBox_KeyDown;
 		pathTextBox.LostFocus += pathTextBox_LostFocus;
 		// 
+		// fileSelection
+		// 
+		fileSelection.BackColor = Color.FromArgb(20, 20, 20);
+		fileSelection.Dock = DockStyle.Fill;
+		fileSelection.Font = new Font("Microsoft Sans Serif", 10F);
+		fileSelection.ForeColor = Color.FromArgb(241, 241, 241);
+		fileSelection.FullRowSelect = true;
+		fileSelection.Location = new Point(0, 40);
+		fileSelection.Name = "fileSelection";
+		fileSelection.OwnerDraw = true;
+		fileSelection.Size = new Size(398, 265);
+		fileSelection.TabIndex = 4;
+		fileSelection.UseCompatibleStateImageBehavior = false;
+		fileSelection.View = View.Details;
+		fileSelection.MouseDown += fileSelection_MouseDown;
+		// 
 		// FilePanel
 		// 
 		BackColor = Color.FromArgb(37, 37, 37);
@@ -315,7 +335,6 @@ public class FilePanel : UserControl
 			if (e.Button == MouseButtons.Right)
 			{
 				// 탭 메뉴 처리
-				var theme = Settings.Instance.Theme;
 				var menu = new ContextMenuStrip();
 
 				if (e.Element == TabStripElement.Tab)
@@ -399,8 +418,6 @@ public class FilePanel : UserControl
 		if (_history.Count == 0)
 			return;
 
-		var theme = Settings.Instance.Theme;
-
 		var menu = new ContextMenuStrip();
 
 		var i = 0;
@@ -427,6 +444,11 @@ public class FilePanel : UserControl
 	private void fileInfoLabel_Click(object? sender, EventArgs e)
 	{
 
+	}
+
+	private void fileSelection_MouseDown(object? sender, MouseEventArgs e)
+	{
+		SetActivePanel(true);
 	}
 
 	public bool NavigateTo(string directory)
@@ -456,14 +478,23 @@ public class FilePanel : UserControl
 		var fileCount = 0;
 		var totalSize = 0L;
 
+		fileSelection.BeginUpdate();
+		fileSelection.ClearItems();
+
+		DriveInfo? drive = null;
 		try
 		{
+			// 루트 디렉토리가 아니면 ".." 항목을 추가
+			if (info.Parent is { Exists: true })
+				fileSelection.AddDirectoryItem(info.Parent);
+
 			// 디렉토리 정보 갱신
 			foreach (var d in info.GetDirectories())
 			{
 				if (!showHidden && (d.Attributes & FileAttributes.Hidden) == FileAttributes.Hidden)
 					continue;
 
+				fileSelection.AddDirectoryItem(d);
 				dirCount++;
 			}
 
@@ -473,8 +504,21 @@ public class FilePanel : UserControl
 				if (!showHidden && (f.Attributes & FileAttributes.Hidden) == FileAttributes.Hidden)
 					continue;
 
+				fileSelection.AddFileItem(f);
 				fileCount++;
 				totalSize += f.Length;
+			}
+
+			// 드라이브 정보 갱신
+			foreach (var v in DriveInfo.GetDrives())
+			{
+				if (!v.IsReady)
+					continue;
+
+				fileSelection.AddDriveItem(v);
+
+				if (drive == null && v.Name.Equals(info.Root.Name, StringComparison.OrdinalIgnoreCase))
+					drive = v;
 			}
 		}
 		catch
@@ -482,14 +526,24 @@ public class FilePanel : UserControl
 			// 아니 왜...?
 		}
 
-		// 정보 갱신
+		fileSelection.EndUpdate();
+
+		// 디렉토리 정보
 		drvDirLabel.SetDirectoryInfo(dirCount, fileCount, totalSize);
+
+		// 드라이브 정보
+		drive ??= DriveInfo.GetDrives().FirstOrDefault(d => d.Name.Equals(info.Root.Name, StringComparison.OrdinalIgnoreCase));
+		drvDirLabel.SetDriveInfo(drive);
 
 		return true;
 	}
 
 	public void SetActivePanel(bool isActive)
 	{
+		// TODO: 먼저 이벤트를 보내고 그담에 상태를 바꿔야 할까?
+		if (_isActivePanel)
+			return;
+
 		_isActivePanel = isActive;
 		workPanel.BorderColor = isActive ? Settings.Instance.Theme.BackHover : Settings.Instance.Theme.Border;
 		PanelActivated?.Invoke(this, new FilePanelActiveEventArgs(this, isActive));

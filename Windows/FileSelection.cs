@@ -9,13 +9,27 @@ public sealed class FileSelection : ListView
 {
 	public FileSelection()
 	{
+		AllowDrop = true;
 		OwnerDraw = true;
 		FullRowSelect = true;
 		View = View.Details;
 		HideSelection = false;
 		DoubleBuffered = true;
 
-		// 기본 컬럼 구성 (자세히 보기 모드)
+		var settings = Settings.Instance;
+		var theme = settings.Theme;
+		Font = new Font(settings.FileFontFamily, settings.FileFontSize, FontStyle.Regular, GraphicsUnit.Point);
+		BackColor = theme.BackContent;
+		ForeColor = theme.Foreground;
+
+		ClearItems();
+	}
+
+	public void ClearItems()
+	{
+		Items.Clear();
+		Columns.Clear();
+		
 		Columns.Add("", 22); // 아이콘
 		Columns.Add("파일이름", 180);
 		Columns.Add("확장자", 60);
@@ -23,18 +37,17 @@ public sealed class FileSelection : ListView
 		Columns.Add("만든날짜", 90);
 		Columns.Add("만든시간", 70);
 		Columns.Add("속성", 60);
-
-		var settings = Settings.Instance;
-		var theme = settings.Theme;
-
-		Font = new Font(settings.FileFontFamily, settings.FileFontSize, FontStyle.Regular, GraphicsUnit.Point);
-		BackColor = theme.BackContent;
-		ForeColor = theme.Foreground;
 	}
 
 	public void AddFileItem(FileInfo fileinfo)
 	{
 		var item = new FileItem(fileinfo);
+		Items.Add(item);
+	}
+
+	public void AddDirectoryItem(DirectoryInfo directoryInfo)
+	{
+		var item = new FileItem(directoryInfo);
 		Items.Add(item);
 	}
 
@@ -106,7 +119,7 @@ public sealed class FileSelection : ListView
 				x += 90;
 				TextRenderer.DrawText(g, file.Creation.ToString("HH:mm"), font, new Point(x, y), textColor, TextFormatFlags.Left);
 				x += 70;
-				TextRenderer.DrawText(g, file.Attribute.ToString(), font, new Point(x, y), textColor, TextFormatFlags.Left);
+				TextRenderer.DrawText(g, file.Attributes.ToString(), font, new Point(x, y), textColor, TextFormatFlags.Left);
 				break;
 			case DriveItem drive:
 			{
@@ -233,6 +246,8 @@ public sealed class FileSelection : ListView
 
 	protected override void OnMouseDown(MouseEventArgs e)
 	{
+		Focus();
+
 		var hit = HitTest(e.Location);
 		if (hit.Item != null && IsSelectable(hit.Item))
 		{
@@ -257,6 +272,7 @@ public sealed class FileSelection : ListView
 				FocusedItem = hit.Item;
 			}
 		}
+
 		base.OnMouseDown(e);
 	}
 
@@ -275,35 +291,59 @@ public sealed class FileSelection : ListView
 
 	public class FileItem : FileSelectionItem
 	{
-		public FileInfo FileInfo { get; }
+		public FileSystemInfo Info { get; }
 
-		public string FullName => FileInfo.FullName;
-		public string FileName => FileInfo.Name;
-		public string Extension => FileInfo.Extension.TrimStart('.');
-		public long Size => FileInfo.Length;
-		public DateTime Creation => FileInfo.CreationTime;
-		public FileAttributes Attribute => FileInfo.Attributes;
-		public bool IsDirectory => FileInfo.Attributes.HasFlag(FileAttributes.Directory);
+		public string FullName { get; }
+		public string FileName { get; }
+		public string Extension { get; }
+		public long Size { get; }
+		public DateTime Creation { get; }
+		public FileAttributes Attributes { get; }
+		public bool IsDirectory { get; }
 
 		public FileItem(FileInfo fileInfo)
 		{
-			FileInfo = fileInfo;
+			Info = fileInfo;
+			FullName = fileInfo.FullName;
+			FileName = fileInfo.Name;
+			Extension = fileInfo.Extension.TrimStart('.');
+			Size = fileInfo.Length;
+			Creation = fileInfo.CreationTime;
+			Attributes = fileInfo.Attributes;
+			IsDirectory = false;
 			Icon = IconCache.Instance.GetIcon(FullName, Extension, IsDirectory);
+		}
+
+		public FileItem(DirectoryInfo directoryInfo)
+		{
+			Info = directoryInfo;
+			FullName = directoryInfo.FullName;
+			FileName = directoryInfo.Name;
+			Extension = string.Empty; // 디렉토리는 확장자가 없음
+			Size = 0; // 디렉토리는 크기가 없음
+			Creation = directoryInfo.CreationTime;
+			Attributes = directoryInfo.Attributes;
+			IsDirectory = true;
+			Icon = IconCache.Instance.GetIcon(FullName, string.Empty, true);
 		}
 	}
 
 	public class DriveItem : FileSelectionItem
 	{
-		public DriveInfo DriveInfo { get; }
+		public DriveInfo Info { get; }
 
-		public string DriveName => DriveInfo.Name;
-		public string Label => DriveInfo.VolumeLabel;
-		public long Total => DriveInfo.TotalSize;
-		public long Available => DriveInfo.AvailableFreeSpace;
+		public string DriveName { get; }
+		public string Label { get; }
+		public long Total { get; }
+		public long Available { get; }
 
 		public DriveItem(DriveInfo driveInfo)
 		{
-			DriveInfo = driveInfo;
+			Info = driveInfo;
+			DriveName = driveInfo.Name.TrimEnd('\\');
+			Label = driveInfo.VolumeLabel;
+			Total = driveInfo.TotalSize;
+			Available = driveInfo.AvailableFreeSpace;
 			Icon = IconCache.Instance.GetIcon(DriveName, string.Empty, false, true);
 		}
 	}
