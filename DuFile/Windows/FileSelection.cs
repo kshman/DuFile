@@ -1,5 +1,4 @@
 ﻿// ReSharper disable MissingXmlDoc
-
 namespace DuFile.Windows;
 
 /// <summary>
@@ -29,7 +28,7 @@ public sealed class FileSelection : ListView
 	{
 		Items.Clear();
 		Columns.Clear();
-		
+
 		Columns.Add("", 22); // 아이콘
 		Columns.Add("파일이름", 180);
 		Columns.Add("확장자", 60);
@@ -63,6 +62,7 @@ public sealed class FileSelection : ListView
 		Items.Add(item);
 	}
 
+	/// <inheritdoc />
 	protected override void OnDrawColumnHeader(DrawListViewColumnHeaderEventArgs e)
 	{
 		using var b = new SolidBrush(Settings.Instance.Theme.Background);
@@ -71,12 +71,14 @@ public sealed class FileSelection : ListView
 		TextRenderer.DrawText(e.Graphics, e.Header?.Text, Font, e.Bounds, Settings.Instance.Theme.Foreground, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
 	}
 
+	/// <inheritdoc />
 	protected override void OnDrawItem(DrawListViewItemEventArgs e)
 	{
 		if (View != View.Details && e.Item is FileSelectionItem item)
 			DrawRowSmallIcon(e.Graphics, item, e.Bounds, e.Item.Selected);
 	}
 
+	/// <inheritdoc />
 	protected override void OnDrawSubItem(DrawListViewSubItemEventArgs e)
 	{
 		if (View == View.Details && e is { Item: FileSelectionItem item, ColumnIndex: 0 })
@@ -119,12 +121,12 @@ public sealed class FileSelection : ListView
 				x += 90;
 				TextRenderer.DrawText(g, file.Creation.ToString("HH:mm"), font, new Point(x, y), textColor, TextFormatFlags.Left);
 				x += 70;
-				TextRenderer.DrawText(g, file.Attributes.ToString(), font, new Point(x, y), textColor, TextFormatFlags.Left);
+				TextRenderer.DrawText(g, file.Attributes.FormatString(), font, new Point(x, y), textColor, TextFormatFlags.Left);
 				break;
 			case DriveItem drive:
 			{
 				TextRenderer.DrawText(g, drive.DriveName, font, new Point(x, y), textColor, TextFormatFlags.Left);
-				x += 100;
+				x += 30;
 				TextRenderer.DrawText(g, drive.Label, font, new Point(x, y), textColor, TextFormatFlags.Left);
 				x += 100;
 				var percent = drive.Total > 0 ? (float)drive.Available / drive.Total : 0f;
@@ -208,6 +210,7 @@ public sealed class FileSelection : ListView
 		_ => true
 	};
 
+	/// <inheritdoc />
 	protected override void OnKeyDown(KeyEventArgs e)
 	{
 		base.OnKeyDown(e);
@@ -244,6 +247,7 @@ public sealed class FileSelection : ListView
 		}
 	}
 
+	/// <inheritdoc />
 	protected override void OnMouseDown(MouseEventArgs e)
 	{
 		Focus();

@@ -20,13 +20,13 @@ internal static class Alter
 	}
 
 	// 파일 속성을 사람이 읽을 수 있는 형식으로 변환
-	public static string FormatFileAttributes(this FileAttributes attributes)
+	public static string FormatString(this FileAttributes attributes)
 	{
 		var sb = new StringBuilder();
 		sb.Append(attributes.HasFlag(FileAttributes.Archive) ? 'A' : '_');
+		sb.Append(attributes.HasFlag(FileAttributes.Hidden) ? 'H' : '_');
 		sb.Append(attributes.HasFlag(FileAttributes.ReadOnly) ? 'R' : '_');
 		sb.Append(attributes.HasFlag(FileAttributes.System) ? 'S' : '_');
-		sb.Append(attributes.HasFlag(FileAttributes.Hidden) ? 'H' : '_');
 		return sb.ToString();
 	}
 

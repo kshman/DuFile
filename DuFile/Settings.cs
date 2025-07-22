@@ -203,7 +203,7 @@ internal class Settings
 
 	public string UiFontFamily
 	{
-		get => GetString("UiFontFamily", "SegoUI");
+		get => GetString("UiFontFamily", "맑은 고딕");
 		set => SetString("UiFontFamily", value);
 	}
 
@@ -215,7 +215,7 @@ internal class Settings
 
 	public string FileFontFamily
 	{
-		get => GetString("FileFontFamily", "SegoUI");
+		get => GetString("FileFontFamily", "세종글꽃체");
 		set => SetString("FileFontFamily", value);
 	}
 
