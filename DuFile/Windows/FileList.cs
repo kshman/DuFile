@@ -53,16 +53,39 @@ public sealed class FileList : Control
 		}
 	}
 
+	// 디자인 모드 확인
+	private bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
+
 	public FileList()
 	{
 		SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
 				 ControlStyles.ResizeRedraw | ControlStyles.UserPaint | ControlStyles.Selectable, true);
+		TabStop = true;
 		var settings = Settings.Instance;
 		var theme = settings.Theme;
 		Font = new Font(settings.FileFontFamily, settings.FileFontSize);
 		BackColor = theme.BackContent;
 		ForeColor = theme.Foreground;
 		_widths.UpdateFixed(Font);
+	}
+
+	/// <inheritdoc />
+	protected override void OnCreateControl()
+	{
+		base.OnCreateControl();
+
+		if (IsReallyDesignMode && Directory.Exists(@"C:\Windows"))
+		{
+			// 디자인 모드에서 기본 값 설정
+			BeginUpdate();
+			AddItem(new FileListFileItem(new FileInfo(@"C:\Windows\notepad.exe")));
+			AddItem(new FileListFileItem(new FileInfo(@"C:\Windows\regedit.exe")) { Selected = true });
+			AddItem(new FileListFileItem(new FileInfo(@"C:\Windows\win.ini")));
+			AddItem(new FileListDirectoryItem(new DirectoryInfo(@"C:\Windows\assembly")));
+			AddItem(new FileListDirectoryItem(new DirectoryInfo(@"C:\Windows\System32")));
+			AddItem(new FileListDriveItem(new DriveInfo("C:")));
+			EndUpdate();
+		}
 	}
 
 	protected override void OnResize(EventArgs e)
@@ -83,6 +106,9 @@ public sealed class FileList : Control
 		if (_updating)
 			return;
 		_updating = true;
+		_scrollOffset = 0;
+		_focusedIndex = -1;
+		_anchorIndex = -1;
 	}
 
 	public void EndUpdate()
@@ -156,22 +182,7 @@ public sealed class FileList : Control
 			if (rect.Top > Height)
 				break;
 
-			using (var backBrush = new SolidBrush(item.Selected ? theme.BackSelection : theme.BackContent))
-				g.FillRectangle(backBrush, rect);
-
-			if (_focusedIndex == i)
-			{
-				var markRect = new Rectangle(rect.Left + 2, rect.Top + 2, 16, rect.Height - 4);
-				DrawSelectMark(g, markRect, theme);
-			}
-
-			var tx = 22;
-			if (item.Icon != null)
-				g.DrawImage(item.Icon, tx, rect.Top + (rect.Height - 16) / 2, 16, 16);
-			tx += 20;
-			var itemRect = new Rectangle(tx, rect.Top, Width - tx, rect.Height);
-			item.DrawDetails(g, Font, itemRect, _widths, ForeColor);
-
+			item.DrawDetails(g, Font, rect, _widths, theme, i == _focusedIndex);
 			y += itemHeight;
 		}
 	}
@@ -192,21 +203,7 @@ public sealed class FileList : Control
 			if (rect.Right < 0 || rect.Left > Width) continue;
 			if (rect.Bottom < 0 || rect.Top > Height) continue;
 
-			using (var backBrush = new SolidBrush(item.Selected ? theme.BackSelection : theme.BackContent))
-				g.FillRectangle(backBrush, rect);
-
-			if (_focusedIndex == i)
-			{
-				var markRect = new Rectangle(rect.Left + 2, rect.Top + 2, 16, rect.Height - 4);
-				DrawSelectMark(g, markRect, theme);
-			}
-
-			var tx = rect.Left + 22;
-			if (item.Icon != null)
-				g.DrawImage(item.Icon, tx, rect.Top + (rect.Height - 16) / 2, 16, 16);
-			tx += 20;
-			var itemRect = new Rectangle(tx, rect.Top, rect.Width - (tx - rect.Left) - 4, rect.Height);
-			item.DrawShort(g, Font, itemRect, ForeColor);
+			item.DrawShort(g, Font, rect, theme, i == _focusedIndex);
 		}
 
 		DrawShortListScrollBar(g, theme);
@@ -254,17 +251,6 @@ public sealed class FileList : Control
 				new Point(rect.Right - 4, rect.Bottom - 3)
 			];
 		g.FillPolygon(new SolidBrush(theme.BackContent), pts);
-	}
-
-	private static void DrawSelectMark(Graphics g, Rectangle rect, Theme theme)
-	{
-		var pts = new[]
-		{
-			new Point(rect.Left + 2, rect.Top + rect.Height / 2),
-			new Point(rect.Right - 2, rect.Top + 4),
-			new Point(rect.Right - 2, rect.Bottom - 4)
-		};
-		g.FillPolygon(new SolidBrush(theme.Foreground), pts);
 	}
 
 	protected override void OnMouseDown(MouseEventArgs e)
@@ -326,6 +312,15 @@ public sealed class FileList : Control
 		Invalidate();
 	}
 
+	protected override bool IsInputKey(Keys keyData)
+	{
+		return keyData switch
+		{
+			Keys.Up or Keys.Down or Keys.Left or Keys.Right => true,
+			_ => base.IsInputKey(keyData)
+		};
+	}
+
 	protected override void OnKeyDown(KeyEventArgs e)
 	{
 		base.OnKeyDown(e);
@@ -336,47 +331,128 @@ public sealed class FileList : Control
 		if (_focusedIndex < 0)
 			_focusedIndex = 0;
 
-		// ReSharper disable once SwitchStatementMissingSomeEnumCasesNoDefault
+		var shift = (e.Modifiers & Keys.Shift) == Keys.Shift;
+		var itemHeight = Font.Height + 6;
+		var visibleRows = Math.Max(1, Height / itemHeight);
+		var prevIndex = _focusedIndex;
+		var newIndex = prevIndex;
+
 		switch (e.KeyCode)
 		{
 			case Keys.Up:
-			{
-				// ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
 				switch (_viewMode)
 				{
 					case FileListViewMode.LongList when _focusedIndex > 0:
-						_focusedIndex--;
+						newIndex--;
 						break;
 					case FileListViewMode.ShortList when _focusedIndex - _shortColumns >= 0:
-						_focusedIndex -= _shortColumns;
+						newIndex -= _shortColumns;
 						break;
 				}
-				Invalidate();
 				break;
-			}
 			case Keys.Down:
-			{
-				// ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
 				switch (_viewMode)
 				{
 					case FileListViewMode.LongList when _focusedIndex < Items.Count - 1:
-						_focusedIndex++;
+						newIndex++;
 						break;
 					case FileListViewMode.ShortList when _focusedIndex + _shortColumns < Items.Count:
-						_focusedIndex += _shortColumns;
+						newIndex += _shortColumns;
 						break;
 				}
-				Invalidate();
 				break;
-			}
 			case Keys.Left when _viewMode == FileListViewMode.ShortList && _focusedIndex > 0:
-				_focusedIndex--;
-				Invalidate();
+				newIndex--;
 				break;
 			case Keys.Right when _viewMode == FileListViewMode.ShortList && _focusedIndex < Items.Count - 1:
-				_focusedIndex++;
-				Invalidate();
+				newIndex++;
 				break;
+			case Keys.Home:
+				newIndex = 0;
+				_scrollOffset = 0;
+				break;
+			case Keys.End:
+				newIndex = Items.Count - 1;
+				if (_viewMode == FileListViewMode.LongList)
+				{
+					_scrollOffset = Math.Max(0, Items.Count * itemHeight - Height);
+				}
+				else // ShortList
+				{
+					var totalRows = (Items.Count + _shortColumns - 1) / _shortColumns;
+					_scrollOffset = Math.Max(0, totalRows * itemHeight - Height);
+				}
+				break;
+			case Keys.PageUp:
+			{
+				if (_viewMode == FileListViewMode.LongList)
+				{
+					var firstVisibleIndex = _scrollOffset / itemHeight;
+					if (_focusedIndex > firstVisibleIndex)
+					{
+						newIndex = firstVisibleIndex;
+					}
+					else
+					{
+						_scrollOffset = Math.Max(0, _scrollOffset - visibleRows * itemHeight);
+						newIndex = _scrollOffset / itemHeight;
+					}
+				}
+				else // ShortList
+				{
+					var firstVisibleRow = _scrollOffset / itemHeight;
+					var firstVisibleIndex = firstVisibleRow * _shortColumns + (_focusedIndex % _shortColumns);
+					if (_focusedIndex > firstVisibleIndex)
+					{
+						newIndex = firstVisibleIndex;
+					}
+					else
+					{
+						_scrollOffset = Math.Max(0, _scrollOffset - visibleRows * itemHeight);
+						firstVisibleRow = _scrollOffset / itemHeight;
+						newIndex = firstVisibleRow * _shortColumns + (_focusedIndex % _shortColumns);
+						if (newIndex >= Items.Count)
+							newIndex = Items.Count - 1;
+					}
+				}
+				break;
+			}
+			case Keys.PageDown:
+			{
+				if (_viewMode == FileListViewMode.LongList)
+				{
+					var lastVisibleIndex = Math.Min(Items.Count - 1, (_scrollOffset + Height) / itemHeight - 1);
+					if (_focusedIndex >= lastVisibleIndex)
+					{
+						var maxOffset = Math.Max(0, Items.Count * itemHeight - Height);
+						_scrollOffset = Math.Min(maxOffset, _scrollOffset + visibleRows * itemHeight);
+						lastVisibleIndex = Math.Min(Items.Count - 1, (_scrollOffset + Height) / itemHeight - 1);
+					}
+					newIndex = lastVisibleIndex;
+				}
+				else // ShortList
+				{
+					var lastVisibleRow = Math.Min(((_scrollOffset + Height) / itemHeight) - 1, (Items.Count - 1) / _shortColumns);
+					var lastVisibleIndex = lastVisibleRow * _shortColumns + (_focusedIndex % _shortColumns);
+					if (lastVisibleIndex >= Items.Count)
+						lastVisibleIndex = Items.Count - 1;
+					if (_focusedIndex < lastVisibleIndex)
+					{
+						newIndex = lastVisibleIndex;
+					}
+					else
+					{
+						var totalRows = (Items.Count + _shortColumns - 1) / _shortColumns;
+						var maxOffset = Math.Max(0, totalRows * itemHeight - Height);
+						_scrollOffset = Math.Min(maxOffset, _scrollOffset + visibleRows * itemHeight);
+						lastVisibleRow = Math.Min(((_scrollOffset + Height) / itemHeight) - 1, (Items.Count - 1) / _shortColumns);
+						newIndex = lastVisibleRow * _shortColumns + (_focusedIndex % _shortColumns);
+						if (newIndex >= Items.Count)
+							newIndex = Items.Count - 1;
+					}
+				}
+				break;
+			}
 			case Keys.Space:
 			case Keys.Insert:
 			{
@@ -384,14 +460,53 @@ public sealed class FileList : Control
 				item.Selected = !item.Selected;
 				_anchorIndex = _focusedIndex;
 				Invalidate();
-				break;
+				return;
 			}
+		}
+
+		// Arrow key scrollOffset 보정
+		if (newIndex != prevIndex && (e.KeyCode == Keys.Up || e.KeyCode == Keys.Down || e.KeyCode == Keys.Left || e.KeyCode == Keys.Right))
+		{
+			if (_viewMode == FileListViewMode.LongList)
+			{
+				var topIndex = _scrollOffset / itemHeight;
+				var bottomIndex = (_scrollOffset + Height) / itemHeight - 1;
+				if (newIndex < topIndex)
+					_scrollOffset = newIndex * itemHeight;
+				else if (newIndex > bottomIndex)
+					_scrollOffset = Math.Min((newIndex + 1) * itemHeight - Height, Math.Max(0, Items.Count * itemHeight - Height));
+			}
+			else // ShortList
+			{
+				var row = newIndex / _shortColumns;
+				var topRow = _scrollOffset / itemHeight;
+				var bottomRow = (_scrollOffset + Height) / itemHeight - 1;
+				if (row < topRow)
+					_scrollOffset = row * itemHeight;
+				else if (row > bottomRow)
+				{
+					var totalRows = (Items.Count + _shortColumns - 1) / _shortColumns;
+					_scrollOffset = Math.Min((row + 1) * itemHeight - Height, Math.Max(0, totalRows * itemHeight - Height));
+				}
+			}
+		}
+
+		if (newIndex != prevIndex)
+		{
+			if (shift)
+			{
+				if (_anchorIndex == -1)
+					_anchorIndex = prevIndex;
+				SelectRange(_anchorIndex, newIndex);
+			}
+			_focusedIndex = newIndex;
+			Invalidate();
 		}
 	}
 
 	private void SelectRange(int from, int to)
 	{
-		if (from > to) 
+		if (from > to)
 			(from, to) = (to, from);
 		foreach (var item in Items)
 			item.Selected = false;
@@ -430,28 +545,6 @@ public sealed class FileList : Control
 		}
 
 		return -1;
-	}
-
-	internal static void DrawItemText(Graphics g, string text, Font font, Rectangle bounds, Color color,
-		bool rightAlign = false)
-	{
-		var drawText = text;
-		var textSize = TextRenderer.MeasureText(drawText, font);
-		if (textSize.Width > bounds.Width)
-		{
-			for (var len = drawText.Length - 1; len > 0; len--)
-			{
-				var t = drawText.Substring(0, len) + "...";
-				if (TextRenderer.MeasureText(t, font).Width <= bounds.Width)
-				{
-					drawText = t;
-					break;
-				}
-			}
-		}
-
-		var flags = TextFormatFlags.VerticalCenter | (rightAlign ? TextFormatFlags.Right : TextFormatFlags.Left);
-		TextRenderer.DrawText(g, drawText, font, bounds, color, flags);
 	}
 }
 
@@ -510,17 +603,70 @@ internal struct FileListWidths
 
 public abstract class FileListItem
 {
+	protected const int MarkWidth = 8;
+
 	public bool Selected { get; set; }
 	public int NameWidth { get; set; }
 	public int ExtWidth { get; set; }
 
 	public Image? Icon { get; set; }
+	public Color Color { get; set; }
 
 	internal abstract string DisplayName { get; }
 	internal abstract string DisplayExtension { get; }
 
-	internal abstract void DrawDetails(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Color color);
-	internal abstract void DrawShort(Graphics g, Font font, Rectangle bounds, Color color);
+	internal abstract void DrawDetails(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Theme theme, bool focused);
+	internal abstract void DrawShort(Graphics g, Font font, Rectangle bounds, Theme theme, bool focused);
+
+	internal void DrawCommon(Graphics g, Rectangle bounds, Theme theme, bool focused)
+	{
+		using (var backBrush = new SolidBrush(focused ? Color : Selected ? theme.BackSelection : theme.BackContent))
+			g.FillRectangle(backBrush, bounds);
+
+		if (Selected)
+		{
+			var markRect = new Rectangle(bounds.Left + 2, bounds.Top + (bounds.Height - MarkWidth) / 2, MarkWidth, MarkWidth);
+			DrawRightArrowMark(g, markRect, theme);
+		}
+
+		var iconX = bounds.Left + MarkWidth + 4;
+		if (Icon != null)
+			g.DrawImage(Icon, iconX, bounds.Top + (bounds.Height - 16) / 2, 16, 16);
+	}
+
+	protected static void DrawItemText(Graphics g, string text, Font font, Rectangle bounds, Color color,
+		bool rightAlign = false)
+	{
+		var drawText = text;
+		var textSize = TextRenderer.MeasureText(drawText, font);
+		if (textSize.Width > bounds.Width)
+		{
+			for (var len = drawText.Length - 1; len > 0; len--)
+			{
+				var t = drawText.Substring(0, len) + "...";
+				if (TextRenderer.MeasureText(t, font).Width <= bounds.Width)
+				{
+					drawText = t;
+					break;
+				}
+			}
+		}
+
+		var flags = TextFormatFlags.VerticalCenter | (rightAlign ? TextFormatFlags.Right : TextFormatFlags.Left);
+		TextRenderer.DrawText(g, drawText, font, bounds, color, flags);
+	}
+
+	private static void DrawRightArrowMark(Graphics g, Rectangle rect, Theme theme)
+	{
+		var pts = new[]
+		{
+			new Point(rect.Left, rect.Top),
+			new Point(rect.Right, rect.Top + rect.Height / 2),
+			new Point(rect.Left, rect.Bottom)
+		};
+		using var brush = new SolidBrush(theme.Foreground);
+		g.FillPolygon(brush, pts);
+	}
 }
 
 public class FileListFileItem : FileListItem
@@ -541,34 +687,34 @@ public class FileListFileItem : FileListItem
 		Creation = fileInfo.CreationTime;
 		Attributes = fileInfo.Attributes;
 		Icon = IconCache.Instance.GetIcon(fileInfo.FullName, Extension);
+		Color = Settings.Instance.Theme.GetColorExtension(Extension.ToUpperInvariant());
 	}
 
 	internal override string DisplayName => FileName;
 	internal override string DisplayExtension => Extension;
 
-	internal override void DrawDetails(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Color color)
+	internal override void DrawDetails(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Theme theme, bool focused)
 	{
-		var x = bounds.Left;
-		FileList.DrawItemText(g, FileName, font, new Rectangle(x, bounds.Top, widths.NameWidth, bounds.Height), color);
+		DrawCommon(g, bounds, theme, focused);
+		var (fileColor, otherColor) = focused ? (theme.BackContent, theme.BackContent) : (Color, theme.Foreground);
+		var x = bounds.Left + 28;
+		DrawItemText(g, FileName, font, new Rectangle(x, bounds.Top, widths.NameWidth, bounds.Height), fileColor);
 		x += widths.NameWidth;
-		FileList.DrawItemText(g, Extension, font, new Rectangle(x, bounds.Top, widths.ExtWidth, bounds.Height), color);
+		DrawItemText(g, Extension, font, new Rectangle(x, bounds.Top, widths.ExtWidth, bounds.Height), fileColor);
 		x += widths.ExtWidth;
-		FileList.DrawItemText(g, Size.FormatFileSize(), font, new Rectangle(x, bounds.Top, widths.SizeWidth, bounds.Height), color,
-			true);
+		DrawItemText(g, Size.FormatFileSize(), font, new Rectangle(x, bounds.Top, widths.SizeWidth, bounds.Height), otherColor, true);
 		x += widths.SizeWidth;
-		FileList.DrawItemText(g, Creation.ToString("yyyy-MM-dd"), font,
-			new Rectangle(x, bounds.Top, widths.DateWidth, bounds.Height), color);
+		DrawItemText(g, Creation.ToString("yyyy-MM-dd"), font, new Rectangle(x, bounds.Top, widths.DateWidth, bounds.Height), otherColor);
 		x += widths.DateWidth;
-		FileList.DrawItemText(g, Creation.ToString("HH:mm"), font, new Rectangle(x, bounds.Top, widths.TimeWidth, bounds.Height),
-			color);
+		DrawItemText(g, Creation.ToString("HH:mm"), font, new Rectangle(x, bounds.Top, widths.TimeWidth, bounds.Height), otherColor);
 		x += widths.TimeWidth;
-		FileList.DrawItemText(g, Attributes.FormatString(), font, new Rectangle(x, bounds.Top, widths.AttrWidth, bounds.Height),
-			color);
+		DrawItemText(g, Attributes.FormatString(), font, new Rectangle(x, bounds.Top, widths.AttrWidth, bounds.Height), otherColor);
 	}
 
-	internal override void DrawShort(Graphics g, Font font, Rectangle bounds, Color color)
+	internal override void DrawShort(Graphics g, Font font, Rectangle bounds, Theme theme, bool focused)
 	{
-		FileList.DrawItemText(g, FileName, font, bounds, color);
+		DrawCommon(g, bounds, theme, focused);
+		DrawItemText(g, FileName, font, bounds, focused ? theme.BackContent : Color);
 	}
 }
 
@@ -586,31 +732,32 @@ public class FileListDirectoryItem : FileListItem
 		Creation = dirInfo.CreationTime;
 		Attributes = dirInfo.Attributes;
 		Icon = IconCache.Instance.GetIcon(dirInfo.FullName, string.Empty, true);
+		Color = Settings.Instance.Theme.Directory;
 	}
 
 	internal override string DisplayName => DirName;
 	internal override string DisplayExtension => string.Empty;
 
-	internal override void DrawDetails(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Color color)
+	internal override void DrawDetails(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Theme theme, bool focused)
 	{
-		var x = bounds.Left;
-		FileList.DrawItemText(g, DirName, font, new Rectangle(x, bounds.Top, widths.NameWidth, bounds.Height), color);
+		DrawCommon(g, bounds, theme, focused);
+		var (dirColor, otherColor) = focused ? (theme.BackContent, theme.BackContent) : (Color, theme.Foreground);
+		var x = bounds.Left + 28;
+		DrawItemText(g, DirName, font, new Rectangle(x, bounds.Top, widths.NameWidth, bounds.Height), dirColor);
 		x += widths.NameWidth + widths.ExtWidth;
-		FileList.DrawItemText(g, "[디렉토리]", font, new Rectangle(x, bounds.Top, widths.SizeWidth, bounds.Height), color, true);
+		DrawItemText(g, "[디렉토리]", font, new Rectangle(x, bounds.Top, widths.SizeWidth, bounds.Height), dirColor, true);
 		x += widths.SizeWidth;
-		FileList.DrawItemText(g, Creation.ToString("yyyy-MM-dd"), font,
-			new Rectangle(x, bounds.Top, widths.DateWidth, bounds.Height), color);
+		DrawItemText(g, Creation.ToString("yyyy-MM-dd"), font, new Rectangle(x, bounds.Top, widths.DateWidth, bounds.Height), otherColor);
 		x += widths.DateWidth;
-		FileList.DrawItemText(g, Creation.ToString("HH:mm"), font, new Rectangle(x, bounds.Top, widths.TimeWidth, bounds.Height),
-			color);
+		DrawItemText(g, Creation.ToString("HH:mm"), font, new Rectangle(x, bounds.Top, widths.TimeWidth, bounds.Height), otherColor);
 		x += widths.TimeWidth;
-		FileList.DrawItemText(g, Attributes.ToString(), font, new Rectangle(x, bounds.Top, widths.AttrWidth, bounds.Height),
-			color);
+		DrawItemText(g, Attributes.FormatString(), font, new Rectangle(x, bounds.Top, widths.AttrWidth, bounds.Height), otherColor);
 	}
 
-	internal override void DrawShort(Graphics g, Font font, Rectangle bounds, Color color)
+	internal override void DrawShort(Graphics g, Font font, Rectangle bounds, Theme theme, bool focused)
 	{
-		FileList.DrawItemText(g, DirName, font, bounds, color);
+		DrawCommon(g, bounds, theme, focused);
+		DrawItemText(g, DirName, font, bounds, focused ? theme.BackContent : Color);
 	}
 }
 
@@ -618,29 +765,36 @@ public class FileListDriveItem : FileListItem
 {
 	public DriveInfo Info { get; }
 	public string DriveName { get; }
+	public string VolumeLabel { get; }
 	public long Total { get; }
 	public long Available { get; }
 
 	public FileListDriveItem(DriveInfo driveInfo)
 	{
 		Info = driveInfo;
-		DriveName = $"{driveInfo.Name.TrimEnd('\\')} {driveInfo.VolumeLabel}";
+		DriveName = driveInfo.Name.TrimEnd('\\');
+		VolumeLabel = $"{DriveName} {driveInfo.VolumeLabel}";
 		Total = driveInfo.TotalSize;
 		Available = driveInfo.AvailableFreeSpace;
 		Icon = IconCache.Instance.GetIcon(DriveName, string.Empty, false, true);
+		Color = Settings.Instance.Theme.Drive;
 	}
 
-	internal override string DisplayName => DriveName;
+	internal override string DisplayName => VolumeLabel;
 	internal override string DisplayExtension => string.Empty;
 
-	internal override void DrawDetails(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Color color)
+	internal override void DrawDetails(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Theme theme, bool focused)
 	{
-		var x = bounds.Left;
-		FileList.DrawItemText(g, DriveName, font, new Rectangle(x, bounds.Top, widths.NameWidth, bounds.Height), color);
+		DrawCommon(g, bounds, theme, focused);
+		var driveColor = focused ? theme.BackContent : Color;
+		var x = bounds.Left + 28;
+		DrawItemText(g, VolumeLabel, font, new Rectangle(x, bounds.Top, widths.NameWidth, bounds.Height), driveColor);
 	}
 
-	internal override void DrawShort(Graphics g, Font font, Rectangle bounds, Color color)
+	internal override void DrawShort(Graphics g, Font font, Rectangle bounds, Theme theme, bool focused)
 	{
-		FileList.DrawItemText(g, DriveName, font, bounds, color);
+		DrawCommon(g, bounds, theme, focused);
+		var driveColor = focused ? theme.BackContent : Color;
+		DrawItemText(g, DriveName, font, bounds, driveColor);
 	}
 }

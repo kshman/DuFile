@@ -28,7 +28,7 @@ public partial class MainForm : Form
 		var theme = Settings.Instance.Theme;
 		BackColor = theme.Background;
 		ForeColor = theme.Foreground;
-		theme.Apply(Controls, null);
+		//theme.Apply(Controls, null);
 	}
 
 	private void ApplySettings()

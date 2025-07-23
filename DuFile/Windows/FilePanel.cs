@@ -22,7 +22,7 @@ public class FilePanel : UserControl
 	private Button refreshButton;
 	private Button editDirButton;
 	private Panel infoPanel;
-	private FileSelection fileSelection;
+	private FileList fileList;
 #nullable restore
 
 	private string _currentDirectory = string.Empty;
@@ -55,6 +55,7 @@ public class FilePanel : UserControl
 		tabStrip = new TabStrip();
 		fileInfoLabel = new Label();
 		workPanel = new EkePanel();
+		fileList = new FileList();
 		infoPanel = new Panel();
 		drvDirLabel = new DirectoryLabel();
 		dirPanel = new Panel();
@@ -63,7 +64,6 @@ public class FilePanel : UserControl
 		editDirButton = new Button();
 		breadcrumbPath = new BreadcrumbPath();
 		pathTextBox = new TextBox();
-		fileSelection = new FileSelection();
 		workPanel.SuspendLayout();
 		infoPanel.SuspendLayout();
 		dirPanel.SuspendLayout();
@@ -105,7 +105,7 @@ public class FilePanel : UserControl
 		workPanel.BorderColor = Color.Gray;
 		workPanel.BorderStyle = BorderStyle.FixedSingle;
 		workPanel.BorderThickness = 1;
-		workPanel.Controls.Add(fileSelection);
+		workPanel.Controls.Add(fileList);
 		workPanel.Controls.Add(infoPanel);
 		workPanel.Controls.Add(dirPanel);
 		workPanel.Controls.Add(fileInfoLabel);
@@ -114,6 +114,18 @@ public class FilePanel : UserControl
 		workPanel.Name = "workPanel";
 		workPanel.Size = new Size(400, 327);
 		workPanel.TabIndex = 2;
+		// 
+		// fileList
+		// 
+		fileList.BackColor = Color.FromArgb(20, 20, 20);
+		fileList.Dock = DockStyle.Fill;
+		fileList.ForeColor = Color.FromArgb(241, 241, 241);
+		fileList.Location = new Point(0, 40);
+		fileList.Name = "fileList";
+		fileList.Size = new Size(398, 265);
+		fileList.TabIndex = 4;
+		fileList.Text = "fileList1";
+		fileList.MouseDown += fileList_MouseDown;
 		// 
 		// infoPanel
 		// 
@@ -212,22 +224,6 @@ public class FilePanel : UserControl
 		pathTextBox.Visible = false;
 		pathTextBox.KeyDown += pathTextBox_KeyDown;
 		pathTextBox.LostFocus += pathTextBox_LostFocus;
-		// 
-		// fileSelection
-		// 
-		fileSelection.BackColor = Color.FromArgb(20, 20, 20);
-		fileSelection.Dock = DockStyle.Fill;
-		fileSelection.Font = new Font("Microsoft Sans Serif", 10F);
-		fileSelection.ForeColor = Color.FromArgb(241, 241, 241);
-		fileSelection.FullRowSelect = true;
-		fileSelection.Location = new Point(0, 40);
-		fileSelection.Name = "fileSelection";
-		fileSelection.OwnerDraw = true;
-		fileSelection.Size = new Size(398, 265);
-		fileSelection.TabIndex = 4;
-		fileSelection.UseCompatibleStateImageBehavior = false;
-		fileSelection.View = View.Details;
-		fileSelection.MouseDown += fileSelection_MouseDown;
 		// 
 		// FilePanel
 		// 
@@ -446,7 +442,7 @@ public class FilePanel : UserControl
 
 	}
 
-	private void fileSelection_MouseDown(object? sender, MouseEventArgs e)
+	private void fileList_MouseDown(object? sender, MouseEventArgs e)
 	{
 		SetActivePanel(true);
 	}
@@ -478,15 +474,15 @@ public class FilePanel : UserControl
 		var fileCount = 0;
 		var totalSize = 0L;
 
-		fileSelection.BeginUpdate();
-		fileSelection.ClearItems();
+		fileList.BeginUpdate();
+		fileList.ClearItems();
 
 		DriveInfo? drive = null;
 		try
 		{
 			// 루트 디렉토리가 아니면 ".." 항목을 추가
 			if (info.Parent is { Exists: true })
-				fileSelection.AddDirectoryItem(info.Parent);
+				fileList.AddDirectory(info.Parent);
 
 			// 디렉토리 정보 갱신
 			foreach (var d in info.GetDirectories())
@@ -494,7 +490,7 @@ public class FilePanel : UserControl
 				if (!showHidden && (d.Attributes & FileAttributes.Hidden) == FileAttributes.Hidden)
 					continue;
 
-				fileSelection.AddDirectoryItem(d);
+				fileList.AddDirectory(d);
 				dirCount++;
 			}
 
@@ -504,7 +500,7 @@ public class FilePanel : UserControl
 				if (!showHidden && (f.Attributes & FileAttributes.Hidden) == FileAttributes.Hidden)
 					continue;
 
-				fileSelection.AddFileItem(f);
+				fileList.AddFile(f);
 				fileCount++;
 				totalSize += f.Length;
 			}
@@ -515,7 +511,7 @@ public class FilePanel : UserControl
 				if (!v.IsReady)
 					continue;
 
-				fileSelection.AddDriveItem(v);
+				fileList.AddDrive(v);
 
 				if (drive == null && v.Name.Equals(info.Root.Name, StringComparison.OrdinalIgnoreCase))
 					drive = v;
@@ -526,7 +522,7 @@ public class FilePanel : UserControl
 			// 아니 왜...?
 		}
 
-		fileSelection.EndUpdate();
+		fileList.EndUpdate();
 
 		// 디렉토리 정보
 		drvDirLabel.SetDirectoryInfo(dirCount, fileCount, totalSize);

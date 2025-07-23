@@ -28,7 +28,7 @@ internal class IconCache
 		else if (isDirectory)
 			key = "directory";
 		else if (!string.IsNullOrEmpty(ext))
-			key = ext is "exe" or "ico" ? fullName : ext;
+			key = ext is "exe" or "lnk" or "ico" ? fullName : ext;
 		else
 		{
 			// 파일인데 확장가가 없네
@@ -47,6 +47,8 @@ internal class IconCache
 #pragma warning disable SYSLIB1054
 	[DllImport("shell32.dll", CharSet = CharSet.Unicode)]
 	private static extern IntPtr SHGetFileInfo(string pszPath, int dwFileAttributes, ref SHFILEINFO psfi, uint cbFileInfo, uint uFlags);
+	[DllImport("user32.dll", SetLastError = true)]
+	private static extern bool DestroyIcon(IntPtr hIcon);
 #pragma warning restore SYSLIB1054
 
 	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
@@ -82,7 +84,16 @@ internal class IconCache
 			}
 
 			var ret = SHGetFileInfo(path, attr, ref shinfo, (uint)Marshal.SizeOf(shinfo), flags);
-			return ret == IntPtr.Zero ? null : Bitmap.FromHicon(shinfo.hIcon);
+			//return ret == IntPtr.Zero ? null : Bitmap.FromHicon(shinfo.hIcon);
+
+			// 투명이 되나 보자
+			if (ret == IntPtr.Zero || shinfo.hIcon == IntPtr.Zero)
+				return null;
+
+			using var icon = Icon.FromHandle(shinfo.hIcon);
+			var bmp = icon.ToBitmap();
+			DestroyIcon(shinfo.hIcon);
+			return bmp;
 		}
 		catch
 		{

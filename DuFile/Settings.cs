@@ -7,8 +7,11 @@ namespace DuFile;
 internal class Settings
 {
 	private static Settings? _instance;
-	private readonly Dictionary<string, string> _cache = [];
 	private string _connectionString = string.Empty;
+
+	private readonly Dictionary<string, string> _cache = [];
+	private readonly Dictionary<string, string> _historyDrive = [];
+	private readonly List<string> _historyConsole = [];
 
 	public Theme Theme { get; } = new();
 
@@ -39,11 +42,36 @@ internal class Settings
 		conn.Open();
 
 		var cmd = conn.CreateCommand();
+
+		// 설정
 		cmd.CommandText = @"
 			CREATE TABLE IF NOT EXISTS Settings (
                 key TEXT UNIQUE PRIMARY KEY NOT NULL,
                 value TEXT NOT NULL
             )";
+		cmd.ExecuteNonQuery();
+
+		// 확장자 색상
+		cmd.CommandText = @"
+			CREATE TABLE IF NOT EXISTS ColorExtension (
+				ext TEXT UNIQUE PRIMARY KEY NOT NULL,
+				color TEXT NOT NULL
+			)";
+		cmd.ExecuteNonQuery();
+
+		// 드라이브 이력
+		cmd.CommandText = @"
+			CREATE TABLE IF NOT EXISTS HistoryDrive (
+				drive TEXT UNIQUE PRIMARY KEY NOT NULL,
+				path TEXT NOT NULL
+			)";
+		cmd.ExecuteNonQuery();
+
+		// 콘솔 실행 이력
+		cmd.CommandText = @"
+			CREATE TABLE IF NOT EXISTS HistoryConsole (
+				command TEXT UNIQUE PRIMARY KEY NOT NULL
+			)";
 		cmd.ExecuteNonQuery();
 	}
 
@@ -56,11 +84,51 @@ internal class Settings
 		conn.Open();
 
 		var cmd = conn.CreateCommand();
-		cmd.CommandText = "SELECT key, value FROM Settings";
 
-		using var rdr = cmd.ExecuteReader();
-		while (rdr.Read())
-			_cache[rdr.GetString(0)] = rdr.GetString(1);
+		// 설정
+		cmd.CommandText = "SELECT key, value FROM Settings";
+		using (var rdr = cmd.ExecuteReader())
+		{
+			while (rdr.Read())
+				_cache[rdr.GetString(0)] = rdr.GetString(1);
+		}
+
+		// 확장자 색상
+		cmd.CommandText = "SELECT ext, color FROM ColorExtension";
+		using (var colorRdr = cmd.ExecuteReader())
+		{
+			while (colorRdr.Read())
+			{
+				var ext = colorRdr.GetString(0);
+				if (uint.TryParse(colorRdr.GetString(1), NumberStyles.HexNumber, null, out var result))
+					Theme.ColorExtension[ext] = Color.FromArgb(unchecked((int)(result | 0xFF000000)));
+			}
+		}
+
+		// 드라이브 이력
+		cmd.CommandText = "SELECT drive, path FROM HistoryDrive";
+		using (var driveRdr = cmd.ExecuteReader())
+		{
+			while (driveRdr.Read())
+			{
+				var drive = driveRdr.GetString(0);
+				var path = driveRdr.GetString(1);
+				if (!string.IsNullOrEmpty(drive) && !string.IsNullOrEmpty(path))
+					_historyDrive[drive] = path;
+			}
+		}
+
+		// 콘솔 이력
+		cmd.CommandText = "SELECT command FROM HistoryConsole";
+		using (var consoleRdr = cmd.ExecuteReader())
+		{
+			while (consoleRdr.Read())
+			{
+				var command = consoleRdr.GetString(0);
+				if (!string.IsNullOrEmpty(command))
+					_historyConsole.Add(command);
+			}
+		}
 	}
 
 	public void Save()
@@ -72,15 +140,34 @@ internal class Settings
 		conn.Open();
 
 		using var transaction = conn.BeginTransaction();
-
 		var cmd = conn.CreateCommand();
-		cmd.CommandText = "INSERT OR REPLACE INTO Settings (key, value) VALUES (@key, @value)";
 
+		// 설정
+		cmd.CommandText = "INSERT OR REPLACE INTO Settings (key, value) VALUES (@key, @value)";
 		foreach (var kvp in _cache)
 		{
 			cmd.Parameters.Clear();
 			cmd.Parameters.AddWithValue("@key", kvp.Key);
 			cmd.Parameters.AddWithValue("@value", kvp.Value);
+			cmd.ExecuteNonQuery();
+		}
+
+		// 드라이브 이력
+		cmd.CommandText = "INSERT OR REPLACE INTO HistoryDrive (drive, path) VALUES (@drive, @path)";
+		foreach (var kvp in _historyDrive)
+		{
+			cmd.Parameters.Clear();
+			cmd.Parameters.AddWithValue("@drive", kvp.Key);
+			cmd.Parameters.AddWithValue("@path", kvp.Value);
+			cmd.ExecuteNonQuery();
+		}
+
+		// 콘솔 이력
+		cmd.CommandText = "INSERT OR REPLACE INTO HistoryConsole (command) VALUES (@command)";
+		foreach (var command in _historyConsole)
+		{
+			cmd.Parameters.Clear();
+			cmd.Parameters.AddWithValue("@command", command);
 			cmd.ExecuteNonQuery();
 		}
 
@@ -215,7 +302,8 @@ internal class Settings
 
 	public string FileFontFamily
 	{
-		get => GetString("FileFontFamily", "세종글꽃체");
+		// "맑은 고딕" "세종글꽃체"
+		get => GetString("FileFontFamily", "맑은 고딕");
 		set => SetString("FileFontFamily", value);
 	}
 
@@ -254,7 +342,7 @@ internal class Settings
 	}
 
 	[SuppressMessage("ReSharper", "RedundantSwitchExpressionArms")]
-	private static string GetDefaultFuncKeyCommand(int functionKey, ModifierKey modifier) =>modifier switch
+	private static string GetDefaultFuncKeyCommand(int functionKey, ModifierKey modifier) => modifier switch
 	{
 		ModifierKey.Control => functionKey switch
 		{
