@@ -40,6 +40,7 @@ public sealed class DirectoryLabel : Control
 	/// <remarks>
 	/// 사용자가 UI에서 디렉토리 라벨을 클릭할 때마다 발생합니다. 구독자는 이 이벤트를 처리하여 디렉토리로 이동하거나 추가 정보를 표시하는 등의 작업을 수행할 수 있습니다.
 	/// </remarks>
+	[Category("DirectoryLabel")]
 	public event EventHandler<DirectoryLabelClickedEventArgs>? DirectoryLabelClicked;
 
 	/// <summary>

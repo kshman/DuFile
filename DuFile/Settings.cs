@@ -438,4 +438,14 @@ internal class Settings
 		var history = GetString("Panel2History", string.Empty);
 		return string.IsNullOrEmpty(history) ? [] : history.Split('|', StringSplitOptions.RemoveEmptyEntries);
 	}
+
+	public string GetDriveHistory(string drive) =>
+		_historyDrive.GetValueOrDefault(drive, drive);
+
+	public void SetDriveHistory(string drive, string path)
+	{
+		if (string.IsNullOrEmpty(drive) || string.IsNullOrEmpty(path))
+			return;
+		_historyDrive[drive] = path;
+	}
 }

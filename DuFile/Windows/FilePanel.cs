@@ -84,7 +84,7 @@ public class FilePanel : UserControl
 		tabStrip.TabIndex = 0;
 		tabStrip.Text = "tabStrip";
 		tabStrip.SelectedIndexChanged += tabStrip_SelectedIndexChanged;
-		tabStrip.CloseClicked += TabStripCloseClicked;
+		tabStrip.CloseClicked += tabStrip_CloseClicked;
 		tabStrip.Clicked += tabStrip_Clicked;
 		// 
 		// fileInfoLabel
@@ -119,12 +119,15 @@ public class FilePanel : UserControl
 		// 
 		fileList.BackColor = Color.FromArgb(20, 20, 20);
 		fileList.Dock = DockStyle.Fill;
+		fileList.Font = new Font("맑은 고딕", 10F);
 		fileList.ForeColor = Color.FromArgb(241, 241, 241);
 		fileList.Location = new Point(0, 40);
 		fileList.Name = "fileList";
 		fileList.Size = new Size(398, 265);
 		fileList.TabIndex = 4;
 		fileList.Text = "fileList1";
+		fileList.FocusedIndexChanged += fileList_FocusedIndexChanged;
+		fileList.ItemDoubleClicked += fileList_ItemDoubleClicked;
 		fileList.MouseDown += fileList_MouseDown;
 		// 
 		// infoPanel
@@ -305,7 +308,7 @@ public class FilePanel : UserControl
 		SetActivePanel(false);
 	}
 
-	private void TabStripCloseClicked(object? sender, TabStripCloseClickedEventArgs e)
+	private void tabStrip_CloseClicked(object? sender, TabStripCloseClickedEventArgs e)
 	{
 		tabStrip.RemoveTabAt(e.Index);
 	}
@@ -447,7 +450,70 @@ public class FilePanel : UserControl
 		SetActivePanel(true);
 	}
 
-	public bool NavigateTo(string directory)
+	private void fileList_FocusedIndexChanged(object? sender, FileListFocusChangedEventArgs e)
+	{
+		switch (e.Item)
+		{
+			case null:
+			{
+				fileInfoLabel.Text = "(선택한 파일이 없어요)";
+				break;
+			}
+			case FileListFileItem fileItem:
+			{
+				var fi = fileItem.Info;
+				fileInfoLabel.Text = $"{fi.Length:N0} | {fi.CreationTime} | {fi.Attributes.FormatString()} | {fi.Name}";
+				break;
+			}
+			case FileListDirectoryItem dirItem:
+			{
+				var di = dirItem.Info;
+				fileInfoLabel.Text = $"디렉토리 | {di.CreationTime} | {di.Attributes.FormatString()} | {di.Name}";
+				break;
+			}
+			case FileListDriveItem driveItem:
+			{
+				var di = driveItem.Info;
+				fileInfoLabel.Text = di.DriveType switch
+				{
+					DriveType.Fixed or DriveType.Ram =>
+						$"{di.VolumeLabel} ({di.Name.TrimEnd('\\')}) | {di.DriveFormat} 디스크 | {di.AvailableFreeSpace.FormatFileSize()} 남음 / {di.TotalSize.FormatFileSize()}",
+					DriveType.Removable =>
+						$"{di.VolumeLabel} ({di.Name.TrimEnd('\\')}) | {di.DriveFormat} 이동식 디스크 | {di.AvailableFreeSpace.FormatFileSize()} 남음 / {di.TotalSize.FormatFileSize()}",
+					DriveType.Network => $"{di.VolumeLabel} ({di.Name.TrimEnd('\\')}) | 네트워크 드라이브",
+					DriveType.CDRom => $"{di.VolumeLabel} ({di.Name.TrimEnd('\\')}) | 광 디스크",
+					_ => $"{di.VolumeLabel} ({di.Name.TrimEnd('\\')}) | 알 수 없는 드라이브"
+				};
+				break;
+			}
+		}
+	}
+
+	private void fileList_ItemDoubleClicked(object? sender, FileListDoubleClickEventArgs e)
+	{
+		switch (e.Item)
+		{
+			case null:
+				break;
+			case FileListFileItem fileItem:
+				break;
+			case FileListDirectoryItem dirItem:
+			{
+				var di = dirItem.Info;
+				NavigateTo(di.FullName, e.MyName);
+				break;
+			}
+			case FileListDriveItem driveItem:
+			{
+				var di = driveItem.Info;
+				var path = Settings.Instance.GetDriveHistory(di.Name);
+				NavigateTo(path);
+				break;
+			}
+		}
+	}
+
+	public bool NavigateTo(string directory, string? selection = null)
 	{
 		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
 			return false;
@@ -458,6 +524,8 @@ public class FilePanel : UserControl
 
 		_currentDirectory = directory;
 		breadcrumbPath.Path = directory;
+
+		settings.SetDriveHistory(info.Root.Name, directory);
 
 		// 이력 갱신
 		_history.Remove(directory); // 중복 제거
@@ -474,7 +542,7 @@ public class FilePanel : UserControl
 		var fileCount = 0;
 		var totalSize = 0L;
 
-		fileList.BeginUpdate();
+		fileList.BeginUpdate(info.Name);
 		fileList.ClearItems();
 
 		DriveInfo? drive = null;
@@ -482,7 +550,7 @@ public class FilePanel : UserControl
 		{
 			// 루트 디렉토리가 아니면 ".." 항목을 추가
 			if (info.Parent is { Exists: true })
-				fileList.AddDirectory(info.Parent);
+				fileList.AddParentDirectory(info.Parent);
 
 			// 디렉토리 정보 갱신
 			foreach (var d in info.GetDirectories())
@@ -523,6 +591,7 @@ public class FilePanel : UserControl
 		}
 
 		fileList.EndUpdate();
+		fileList.SelectName(selection);
 
 		// 디렉토리 정보
 		drvDirLabel.SetDirectoryInfo(dirCount, fileCount, totalSize);
