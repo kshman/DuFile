@@ -17,7 +17,7 @@ public class FilePanel : UserControl
 	private Panel dirPanel;
 	private BreadcrumbPath breadcrumbPath;
 	private TextBox pathTextBox;
-	private DirectoryLabel drvDirLabel;
+	private PathLabel drvDirLabel;
 	private Button historyButton;
 	private Button refreshButton;
 	private Button editDirButton;
@@ -25,7 +25,7 @@ public class FilePanel : UserControl
 	private FileList fileList;
 #nullable restore
 
-	private string _currentDirectory = string.Empty;
+	private DirectoryInfo? _current;
 	private bool _isActivePanel;
 	private bool _isEditPathMode;
 	private bool _tabLoaded;
@@ -37,6 +37,10 @@ public class FilePanel : UserControl
 
 	[Category("FilePanel")]
 	public event EventHandler<FilePanelActiveEventArgs>? PanelActivated;
+
+	[Browsable(false)]
+	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+	public MainForm? MainForm { get; set; }
 
 	// 디자인 모드 확인
 	private bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
@@ -57,7 +61,7 @@ public class FilePanel : UserControl
 		workPanel = new EkePanel();
 		fileList = new FileList();
 		infoPanel = new Panel();
-		drvDirLabel = new DirectoryLabel();
+		drvDirLabel = new PathLabel();
 		dirPanel = new Panel();
 		historyButton = new Button();
 		refreshButton = new Button();
@@ -128,6 +132,8 @@ public class FilePanel : UserControl
 		fileList.Text = "fileList1";
 		fileList.FocusedIndexChanged += fileList_FocusedIndexChanged;
 		fileList.ItemDoubleClicked += fileList_ItemDoubleClicked;
+		fileList.ItemClicked += fileList_ItemClicked;
+		fileList.SelectChanged += fileList_SelectChanged;
 		fileList.MouseDown += fileList_MouseDown;
 		// 
 		// infoPanel
@@ -322,7 +328,7 @@ public class FilePanel : UserControl
 				// 경로가 이상하다. 기본 경로로 돌아간다
 				// 이것도 잘못되면.. 모르겠다
 				// TODO: 경로가 잘못되면 탭을 닫아야 하는데, 안했다.
-				NavigateTo(Settings.Instance.StartDirectory);
+				NavigateTo(Settings.Instance.StartFolder);
 			}
 		}
 	}
@@ -465,10 +471,10 @@ public class FilePanel : UserControl
 				fileInfoLabel.Text = $"{fi.Length:N0} | {fi.CreationTime} | {fi.Attributes.FormatString()} | {fi.Name}";
 				break;
 			}
-			case FileListDirectoryItem dirItem:
+			case FileListFolderItem dirItem:
 			{
 				var di = dirItem.Info;
-				fileInfoLabel.Text = $"디렉토리 | {di.CreationTime} | {di.Attributes.FormatString()} | {di.Name}";
+				fileInfoLabel.Text = $"폴더 | {di.CreationTime} | {di.Attributes.FormatString()} | {di.Name}";
 				break;
 			}
 			case FileListDriveItem driveItem:
@@ -497,10 +503,10 @@ public class FilePanel : UserControl
 				break;
 			case FileListFileItem fileItem:
 				break;
-			case FileListDirectoryItem dirItem:
+			case FileListFolderItem dirItem:
 			{
 				var di = dirItem.Info;
-				NavigateTo(di.FullName, e.MyName);
+				NavigateTo(di.FullName, e.FullName);
 				break;
 			}
 			case FileListDriveItem driveItem:
@@ -513,28 +519,48 @@ public class FilePanel : UserControl
 		}
 	}
 
-	public bool NavigateTo(string directory, string? selection = null)
+	private void fileList_ItemClicked(object? sender, FileListClickEventArgs e)
 	{
-		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+
+	}
+
+	private void fileList_SelectChanged(object? sender, FileListSelectChangedEventArgs e)
+	{
+		var count = fileList.GetSelectedCount();
+		if (count == 0)
+		{
+			// 선택이 없으면 드라이브 정보
+			var drive = _current  == null ? null : new DriveInfo(_current.Root.FullName);
+			drvDirLabel.SetDriveInfo(drive);
+		}
+		else
+		{
+			// 아니면 선택 정보
+			drvDirLabel.SetSelectedInfo(count, fileList.GetSelectedSize());
+		}
+	}
+
+	public bool NavigateTo(string folder, string? selection = null)
+	{
+		if (!string.IsNullOrEmpty(folder) && !Directory.Exists(folder))
 			return false;
 
 		var settings = Settings.Instance;
 		var showHidden = settings.ShowHiddenFiles;
-		var info = new DirectoryInfo(directory);
 
-		_currentDirectory = directory;
-		breadcrumbPath.Path = directory;
+		_current = new DirectoryInfo(folder);
+		breadcrumbPath.Path = folder;
 
-		settings.SetDriveHistory(info.Root.Name, directory);
+		settings.SetDriveHistory(_current.Root.Name, folder);
 
 		// 이력 갱신
-		_history.Remove(directory); // 중복 제거
-		_history.Add(directory);
+		_history.Remove(folder); // 중복 제거
+		_history.Add(folder);
 		if (_history.Count > 20)
 			_history.RemoveAt(0); // 최대 20개까지만 유지
 
 		// 탭 갱신
-		tabStrip.SetTabTextAt(tabStrip.SelectedIndex, info.Name, directory);
+		tabStrip.SetTabTextAt(tabStrip.SelectedIndex, _current.Name, folder);
 
 		// 리스트 갱신
 		//... 인데 리스트가 없으니 일단 다른것부터
@@ -542,28 +568,28 @@ public class FilePanel : UserControl
 		var fileCount = 0;
 		var totalSize = 0L;
 
-		fileList.BeginUpdate(info.Name);
+		fileList.FullName = _current.FullName;
+		fileList.BeginUpdate();
 		fileList.ClearItems();
 
-		DriveInfo? drive = null;
 		try
 		{
 			// 루트 디렉토리가 아니면 ".." 항목을 추가
-			if (info.Parent is { Exists: true })
-				fileList.AddParentDirectory(info.Parent);
+			if (_current.Parent is { Exists: true })
+				fileList.AddParentFolder(_current.Parent);
 
-			// 디렉토리 정보 갱신
-			foreach (var d in info.GetDirectories())
+			// 폴더 정보 갱신
+			foreach (var d in _current.GetDirectories())
 			{
 				if (!showHidden && (d.Attributes & FileAttributes.Hidden) == FileAttributes.Hidden)
 					continue;
 
-				fileList.AddDirectory(d);
+				fileList.AddFolder(d);
 				dirCount++;
 			}
 
 			// 파일 정보 갱신
-			foreach (var f in info.GetFiles())
+			foreach (var f in _current.GetFiles())
 			{
 				if (!showHidden && (f.Attributes & FileAttributes.Hidden) == FileAttributes.Hidden)
 					continue;
@@ -580,9 +606,6 @@ public class FilePanel : UserControl
 					continue;
 
 				fileList.AddDrive(v);
-
-				if (drive == null && v.Name.Equals(info.Root.Name, StringComparison.OrdinalIgnoreCase))
-					drive = v;
 			}
 		}
 		catch
@@ -593,11 +616,11 @@ public class FilePanel : UserControl
 		fileList.EndUpdate();
 		fileList.SelectName(selection);
 
-		// 디렉토리 정보
-		drvDirLabel.SetDirectoryInfo(dirCount, fileCount, totalSize);
+		// 폴더 정보
+		drvDirLabel.SetFolderInfo(dirCount, fileCount, totalSize);
 
 		// 드라이브 정보
-		drive ??= DriveInfo.GetDrives().FirstOrDefault(d => d.Name.Equals(info.Root.Name, StringComparison.OrdinalIgnoreCase));
+		var drive = new DriveInfo(_current.Root.FullName);
 		drvDirLabel.SetDriveInfo(drive);
 
 		return true;
@@ -636,19 +659,19 @@ public class FilePanel : UserControl
 	}
 
 	// 새탭 추가
-	public void AddTab(string? directory, bool force = false)
+	public void AddTab(string? folder, bool force = false)
 	{
-		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
-			directory = Directory.Exists(_currentDirectory) ? _currentDirectory : Settings.Instance.StartDirectory;
+		if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+			folder = _current is { Exists: true } ? _current.FullName : Settings.Instance.StartFolder;
 
-		var index = tabStrip.GetTabIndexByValue(directory);
+		var index = tabStrip.GetTabIndexByValue(folder);
 		if (!force && index >= 0)
 		{
 			tabStrip.SelectedIndex = index;
 			return;
 		}
 
-		var di = new DirectoryInfo(directory);
+		var di = new DirectoryInfo(folder);
 		index = tabStrip.AddTab(di.Name, di.FullName);
 		if (index >= 0)
 			tabStrip.SelectedIndex = index;
@@ -709,15 +732,15 @@ public class FilePanel : UserControl
 		// 읽을 탭이 있으면 처리
 		if (isOk)
 		{
-			var directories = tabs.SplitWithSeparator('|');
-			if (directories.Length > 0)
+			var folders = tabs.SplitWithSeparator('|');
+			if (folders.Length > 0)
 			{
-				foreach (var directory in directories)
+				foreach (var folder in folders)
 				{
-					var d = new DirectoryInfo(directory);
+					var d = new DirectoryInfo(folder);
 					if (!d.Exists)
 						continue; // 유효하지 않은 경로는 무시
-					tabStrip.AddTab(d.Name, directory);
+					tabStrip.AddTab(d.Name, folder);
 				}
 
 				if (tabStrip.Count > 0)

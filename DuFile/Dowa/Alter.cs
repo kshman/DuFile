@@ -30,6 +30,21 @@ internal static class Alter
 		return sb.ToString();
 	}
 
+	// 날짜를 오늘 기준 30일 내 상대 문구로 변환
+	public static string FormatRelativeDate(this DateTime date)
+	{
+		var now = DateTime.Now;
+		var diff = now - date;
+		return diff.TotalDays switch
+		{
+			< 1 => "오늘",
+			< 2 => "어제",
+			< 3 => "그저께",
+			< 30 => $"{(int)diff.TotalDays}일 전",
+			_ => date.ToString("yyyy-MM-dd")
+		};
+	}
+
 	// 색상 혼합(알파 블렌딩)
 	public static Color BlendColor(Color c1, Color c2, float factor)
 	{

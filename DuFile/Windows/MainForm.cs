@@ -11,16 +11,15 @@ namespace DuFile.Windows;
 /// the text, command, shortcut, and submenus for each menu item.</remarks>
 public partial class MainForm : Form
 {
-	public static MainForm? Instance { get; private set; }
-
 	public MainForm()
 	{
-		Instance ??= this;
-
 		InitializeComponent();
 		IntiializeMenu();
 		ApplyTheme();
 		ApplySettings();
+
+		leftPanel.MainForm = this;
+		rightPanel.MainForm = this;
 	}
 
 	private void ApplyTheme()
@@ -28,7 +27,6 @@ public partial class MainForm : Form
 		var theme = Settings.Instance.Theme;
 		BackColor = theme.Background;
 		ForeColor = theme.Foreground;
-		//theme.Apply(Controls, null);
 	}
 
 	private void ApplySettings()
@@ -55,12 +53,10 @@ public partial class MainForm : Form
 	{
 		base.OnLoad(e);
 		UpdateLayout();
-		// ≈« ∫π±∏
 	}
 
 	protected override void OnFormClosing(FormClosingEventArgs e)
 	{
-		// ≈« ¿˙¿Â
 		base.OnFormClosing(e);
 
 		var settings = Settings.Instance;

@@ -10,8 +10,8 @@ public sealed class VerticalBar : Control
 
 	private readonly ButtonDef[] _buttonDefs =
 	[
-		new(0, "→", "#SyncLeftToRight", "오른쪽 디렉토리를 같게"),
-		new(20, "←", "#SyncRightToLeft", "왼쪽 디렉토리를 같기"),
+		new(0, "→", "#SyncLeftToRight", "오른쪽 폴더를 같게"),
+		new(20, "←", "#SyncRightToLeft", "왼쪽 폴더를 같기"),
 		new(0, "▶", "#CopyLeftToRight", "오른쪽으로 복사"),
 		new(20, "◀", "#CopyRightToLeft", "왼쪽으로 복사"),
 		new(5, "▣", "#SelectAll", "모두 선택"),

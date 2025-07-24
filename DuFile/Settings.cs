@@ -17,7 +17,7 @@ internal class Settings
 
 	public static Settings Instance => _instance ??= new Settings();
 
-	private string InitialStartDirectory => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+	private string InitialStartFolder => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 
 	private Settings()
 	{
@@ -228,10 +228,10 @@ internal class Settings
 	public void SetSetting(string key, string value) =>
 		SetString(key, value);
 
-	public string StartDirectory
+	public string StartFolder
 	{
-		get => GetString("StartDirectory", InitialStartDirectory);
-		set => SetString("StartDirectory", value);
+		get => GetString("StartFolder", InitialStartFolder);
+		set => SetString("StartFolder", value);
 	}
 
 	public Size WindowSize
@@ -378,7 +378,7 @@ internal class Settings
 			4 => Commands.Edit,
 			5 => Commands.Copy,
 			6 => Commands.Move,
-			7 => Commands.NewDirectory,
+			7 => Commands.NewFolder,
 			8 => Commands.Trash,
 			9 => Commands.Console,
 			_ => Commands.None

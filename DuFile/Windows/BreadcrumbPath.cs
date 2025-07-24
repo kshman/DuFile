@@ -23,7 +23,7 @@ public class BreadcrumbPath : Control
 	}
 
 	/// <summary>
-	/// BreadCrumb의 경로 파트(디렉토리명) 배열
+	/// BreadCrumb의 경로 파트(폴더 이름) 배열
 	/// </summary>
 	public string[] Parts => _parts.ToArray();
 
@@ -35,7 +35,7 @@ public class BreadcrumbPath : Control
 	public int StaticHeight => 20;
 
 	/// <summary>
-	/// BreadCrumb에서 디렉토리 클릭 시 발생하는 이벤트입니다.
+	/// BreadCrumb에서 폴더 클릭 시 발생하는 이벤트입니다.
 	/// </summary>
 	public event EventHandler<BreadcrumbPathClickedEventArgs>? BreadcrumbPathClicked;
 
@@ -63,7 +63,7 @@ public class BreadcrumbPath : Control
 		if (IsReallyDesignMode)
 		{
 			// 디자인 모드에서 기본 경로 설정
-			Path = Settings.Instance.StartDirectory;
+			Path = Settings.Instance.StartFolder;
 		}
 	}
 
@@ -271,7 +271,7 @@ public class BreadcrumbPath : Control
 		// ... 클릭
 		if (_hoverEllipsis && _ellipsisRect != null)
 		{
-			// ...을 클릭하면 0번째(최상위) 디렉토리 클릭으로 간주하거나, 필요에 따라 이벤트를 확장할 수 있음
+			// ...을 클릭하면 0번째(최상위) 폴더 클릭으로 간주하거나, 필요에 따라 이벤트를 확장할 수 있음
 			BreadcrumbPathClicked?.Invoke(this, new BreadcrumbPathClickedEventArgs(GetDirectoryPath(0), e.Location, e.Button));
 			return;
 		}
@@ -319,7 +319,7 @@ public class BreadcrumbPath : Control
 /// </summary>
 public class BreadcrumbPathClickedEventArgs(string path, Point location, MouseButtons button) : EventArgs
 {
-	/// <summary>해당 디렉토리 경로</summary>
+	/// <summary>해당 폴더 경로</summary>
 	public string Path { get; } = path;
 
 	/// <summary>

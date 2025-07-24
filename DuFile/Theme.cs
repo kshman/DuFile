@@ -12,7 +12,7 @@ internal struct Theme
 
 	public Color Accelerator = Color.FromArgb(255, 128, 64);
 	public Color Drive = Color.FromArgb(0x80, 0x80, 0xFF);
-	public Color Directory = Color.FromArgb(0xea, 0x22, 0x22);
+	public Color Folder = Color.FromArgb(0xea, 0x22, 0x22);
 	public Color Hidden = Color.FromArgb(255, 0, 0);
 	public Color ReadOnly = Color.FromArgb(255, 255, 0);
 

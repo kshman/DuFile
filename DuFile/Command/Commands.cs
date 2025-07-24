@@ -9,7 +9,7 @@ internal class Commands
 	public const string Edit = "#편집";
 	public const string Copy = "#복사";
 	public const string Move = "#이동";
-	public const string NewDirectory = "#새디렉토리";
+	public const string NewFolder = "#새폴더";
 	public const string NewEmptyFile = "#새빈파일";
 	public const string NewShortcutDesktop = "#새바로가기";
 	public const string Delete = "#지우기";
@@ -24,7 +24,7 @@ internal class Commands
 	public const string Trash = "#휴지통으로";
 	public const string AdvancedRename = "#확장이름바꾸기";
 	public const string Refresh = "#새로고침";
-	public const string CalcSelectedDirectory = "#선택한디렉토리계산";
+	public const string CalcSelectedFolder = "#선택한폴더계산";
 	public const string DetemineExtension = "#확장자쓰임새확인";
 	public const string ChecksumCrc = "#CRC체크섬";
 	public const string ChecksumMd5 = "#MD5체크섬";
@@ -52,7 +52,7 @@ internal class Commands
 		{ Edit, "편집" },
 		{ Copy, "복사" },
 		{ Move, "이동" },
-		{ NewDirectory, "새 폴더" },
+		{ NewFolder, "새 폴더" },
 		{ NewEmptyFile, "새 빈 파일"},
 		{ NewShortcutDesktop, "바탕화면 바로가기 만들기" },
 		{ Delete, "삭제" },
@@ -67,7 +67,7 @@ internal class Commands
 		{ Trash, "휴지통으로" },
 		{ AdvancedRename, "고급 이름 바꾸기" },
 		{ Refresh, "새로 고침" },
-		{ CalcSelectedDirectory, "선택한 디렉토리 크기 계산"},
+		{ CalcSelectedFolder, "선택한 폴더 크기 계산"},
 		{ DetemineExtension, "확장자가 뭔지 검색" },
 		{ ChecksumCrc, "CRC 체크섬" },
 		{ ChecksumMd5, "MD5 체크섬" },

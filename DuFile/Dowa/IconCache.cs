@@ -20,13 +20,13 @@ internal class IconCache
 		_cache.Clear();
 	}
 
-	public Bitmap? GetIcon(string fullName, string ext, bool isDirectory = false, bool isDrive = false)
+	public Bitmap? GetIcon(string fullName, string ext, bool isFolder = false, bool isDrive = false)
 	{
 		string key;
 		if (isDrive)
 			key = $"drive#{fullName}";
-		else if (isDirectory)
-			key = "directory";
+		else if (isFolder)
+			key = "folder";
 		else if (!string.IsNullOrEmpty(ext))
 			key = ext is "exe" or "lnk" or "ico" ? fullName : ext;
 		else
@@ -38,7 +38,7 @@ internal class IconCache
 		if (_cache.TryGetValue(key, out var cachedIcon))
 			return cachedIcon;
 
-		var bmp = ExtractIcon(fullName, isDirectory);
+		var bmp = ExtractIcon(fullName, isFolder);
 		_cache.Add(key, bmp);
 		return bmp;
 	}
@@ -68,7 +68,7 @@ internal class IconCache
 	private const uint SHGFI_SMALLICON = 0x000000001;
 	private const uint SHGFI_USEFILEATTRIBUTES = 0x000000010;
 
-	private static Bitmap? ExtractIcon(string path, bool isDirectory)
+	private static Bitmap? ExtractIcon(string path, bool isFolder)
 	{
 		try
 		{
@@ -76,9 +76,9 @@ internal class IconCache
 			var attr = 0;
 			var flags = SHGFI_ICON | SHGFI_SMALLICON;
 
-			if (isDirectory)
+			if (isFolder)
 			{
-				// 디렉토리는 속성 사용
+				// 폴더 속성 사용
 				attr = 0x00000010; // FILE_ATTRIBUTE_DIRECTORY
 				flags |= SHGFI_USEFILEATTRIBUTES;
 			}
