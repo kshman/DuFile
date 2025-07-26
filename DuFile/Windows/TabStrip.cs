@@ -125,13 +125,13 @@ public class TabStrip : Control
 	/// 선택된 탭의 닫기 버튼이 클릭될 때 발생합니다.
 	/// </summary>
 	[Category("TabStrip")]
-	public event EventHandler<TabStripCloseClickedEventArgs>? CloseClicked;
+	public event EventHandler<TabStripCloseClickEventArgs>? CloseClick;
 
 	/// <summary>
 	/// 탭, 닫기, 스크롤, 목록 등 클릭 시 발생하는 이벤트입니다.
 	/// </summary>
 	[Category("TabStrip")]
-	public event EventHandler<TabStripClickedEventArgs>? Clicked;
+	public event EventHandler<TabStripElementClickEventArgs>? ElementClick;
 
 	// 디자인 모드 확인
 	bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
@@ -475,7 +475,7 @@ public class TabStrip : Control
 			if (e.Button == MouseButtons.Left && Tabs.Count > 1 && tab.CloseButtonBounds.Contains(e.Location))
 			{
 				if (!InvokeClicked(e, TabStripElement.Close, i))
-					CloseClicked?.Invoke(this, new TabStripCloseClickedEventArgs(i));
+					CloseClick?.Invoke(this, new TabStripCloseClickEventArgs(i));
 				return;
 			}
 
@@ -564,10 +564,10 @@ public class TabStrip : Control
 	// 클릭 이벤트를 발생시키고, 핸들링 여부를 반환합니다.
 	private bool InvokeClicked(MouseEventArgs mArgs, TabStripElement element, int index = -1)
 	{
-		if (Clicked == null)
+		if (ElementClick == null)
 			return false;
-		var args = new TabStripClickedEventArgs(mArgs.Location, mArgs.Button, element, index);
-		Clicked.Invoke(this, args);
+		var args = new TabStripElementClickEventArgs(mArgs.Location, mArgs.Button, element, index);
+		ElementClick.Invoke(this, args);
 		return args.Handled;
 	}
 
@@ -612,7 +612,7 @@ public class TabStrip : Control
 /// <summary>
 /// 탭 닫기 버튼 클릭 이벤트 인수입니다.
 /// </summary>
-public class TabStripCloseClickedEventArgs(int index) : EventArgs
+public class TabStripCloseClickEventArgs(int index) : EventArgs
 {
 	/// <summary>
 	/// 닫기 버튼이 클릭된 탭의 인덱스입니다.
@@ -660,7 +660,7 @@ public enum TabStripElement
 /// <summary>
 /// TabStrip 클릭 이벤트 인수입니다.
 /// </summary>
-public class TabStripClickedEventArgs(Point location, MouseButtons button, TabStripElement element, int index = -1) : EventArgs
+public class TabStripElementClickEventArgs(Point location, MouseButtons button, TabStripElement element, int index = -1) : EventArgs
 {
 	/// <summary>
 	/// 클릭 위치

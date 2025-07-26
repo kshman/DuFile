@@ -94,7 +94,7 @@
 			funcBar.Name = "funcBar";
 			funcBar.Size = new Size(800, 25);
 			funcBar.TabIndex = 5;
-			funcBar.ButtonClicked += funcBar_ButtonClicked;
+			funcBar.ButtonClick += FuncBarButtonClick;
 			// 
 			// MainForm
 			// 

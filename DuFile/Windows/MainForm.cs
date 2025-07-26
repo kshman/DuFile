@@ -148,7 +148,7 @@ public partial class MainForm : Form
 
 	}
 
-	private void funcBar_ButtonClicked(object sender, FuncBarButtonClickedEventArgs e)
+	private void FuncBarButtonClick(object sender, FuncBarButtonClickEventArgs e)
 	{
 		ExecuteCommand(e.Command);
 	}

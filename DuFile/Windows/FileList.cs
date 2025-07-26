@@ -421,15 +421,21 @@ public sealed class FileList : Control
 		if (idx < 0)
 			return;
 
-		if (e.Button == MouseButtons.Left)
+		switch (e.Button)
 		{
-			if ((ModifierKeys & Keys.Shift) == Keys.Shift)
+			case MouseButtons.XButton1:
+				// 다음 버튼 클릭
+			case MouseButtons.XButton2:
+				// 이전 버튼 클릭
+				return;
+			case MouseButtons.Left when (ModifierKeys & Keys.Shift) == Keys.Shift:
 			{
 				if (_anchorIndex == -1)
 					_anchorIndex = FocusedIndex;
 				SelectRange(_anchorIndex, idx);
+				break;
 			}
-			else if ((ModifierKeys & Keys.Control) == Keys.Control)
+			case MouseButtons.Left when (ModifierKeys & Keys.Control) == Keys.Control:
 			{
 				var item = Items[idx];
 				if (item is FileListFileItem or FileListFolderItem { IsParent: false })
@@ -437,16 +443,25 @@ public sealed class FileList : Control
 					item.Selected = !item.Selected;
 					SelectChanged?.Invoke(this, new FileListSelectChangedEventArgs(this));
 				}
-				_anchorIndex = idx;
-			}
-			else
-			{
-				_anchorIndex = idx;
-			}
 
-			FocusedIndex = idx;
-			Invalidate();
+				_anchorIndex = idx;
+				break;
+			}
+			case MouseButtons.Left:
+			case MouseButtons.Right:
+			case MouseButtons.Middle:
+				_anchorIndex = idx;
+				break;
+			case MouseButtons.None:
+				// 잉? 이게 들어온다고?
+			default:
+				// 오른쪽 및 가운데 버튼
+				_anchorIndex = idx;
+				break;
 		}
+
+		FocusedIndex = idx;
+		Invalidate();
 
 		ItemClicked?.Invoke(this, new FileListClickEventArgs(this, e.Button, e.Location));
 	}
@@ -660,6 +675,14 @@ public sealed class FileList : Control
 					ItemDoubleClicked?.Invoke(this, new FileListDoubleClickEventArgs(item, FullName));
 				return;
 			}
+			case Keys.Apps when ItemClicked != null:
+			{
+				var bound = GetIndexedBound(FocusedIndex);
+				if (!bound.HasValue)
+					return;
+				ItemClicked.Invoke(this, new FileListClickEventArgs(this, MouseButtons.Right, bound.Value.Location));
+				return;
+			}
 		}
 
 		// Arrow key scrollOffset 보정
@@ -750,6 +773,29 @@ public sealed class FileList : Control
 		}
 
 		return -1;
+	}
+
+	private Rectangle? GetIndexedBound(int index)
+	{
+		if (index < 0 || index >= Items.Count)
+			return null;
+
+		var itemHeight = Font.Height + 6;
+
+		if (_viewMode == FileListViewMode.LongList)
+		{
+			var y = index * itemHeight - _scrollOffset;
+			return new Rectangle(0, y, Width, itemHeight);
+		}
+		else // ShortList
+		{
+			var itemWidth = (Width - 4) / _shortColumns;
+			var row = index / _shortColumns;
+			var col = index % _shortColumns;
+			var x = col * itemWidth - _scrollOffset;
+			var y = row * itemHeight;
+			return new Rectangle(x, y, itemWidth, itemHeight);
+		}
 	}
 }
 
@@ -1227,8 +1273,6 @@ public class FileListDoubleClickEventArgs(FileListItem? item, string fullName) :
 /// </summary>
 public class FileListClickEventArgs : EventArgs
 {
-	/// <summary>클릭이 발생한 파일 리스트 컨트롤입니다.</summary>
-	public FileList FileList { get; }
 	/// <summary>클릭된 마우스 버튼입니다.</summary>
 	public MouseButtons Button { get; }
 	/// <summary>클릭 위치(컨트롤 기준 좌표)입니다.</summary>
@@ -1244,7 +1288,6 @@ public class FileListClickEventArgs : EventArgs
 	/// <param name="location">클릭 위치(컨트롤 기준 좌표)입니다.</param>
 	public FileListClickEventArgs(FileList fileList, MouseButtons button, Point location)
 	{
-		FileList = fileList;
 		Button = button;
 		Location = location;
 		ScreenLocation = fileList.PointToScreen(location);

@@ -17,7 +17,7 @@ public class FilePanel : UserControl
 	private Panel dirPanel;
 	private BreadcrumbPath breadcrumbPath;
 	private TextBox pathTextBox;
-	private PathLabel drvDirLabel;
+	private PathLabel pathLabel;
 	private Button historyButton;
 	private Button refreshButton;
 	private Button editDirButton;
@@ -61,7 +61,7 @@ public class FilePanel : UserControl
 		workPanel = new EkePanel();
 		fileList = new FileList();
 		infoPanel = new Panel();
-		drvDirLabel = new PathLabel();
+		pathLabel = new PathLabel();
 		dirPanel = new Panel();
 		historyButton = new Button();
 		refreshButton = new Button();
@@ -88,8 +88,8 @@ public class FilePanel : UserControl
 		tabStrip.TabIndex = 0;
 		tabStrip.Text = "tabStrip";
 		tabStrip.SelectedIndexChanged += tabStrip_SelectedIndexChanged;
-		tabStrip.CloseClicked += tabStrip_CloseClicked;
-		tabStrip.Clicked += tabStrip_Clicked;
+		tabStrip.CloseClick += tabStrip_CloseClick;
+		tabStrip.ElementClick += tabStrip_ElementClick;
 		// 
 		// fileInfoLabel
 		// 
@@ -102,7 +102,6 @@ public class FilePanel : UserControl
 		fileInfoLabel.TabIndex = 1;
 		fileInfoLabel.Text = "(파일 정보)";
 		fileInfoLabel.TextAlign = ContentAlignment.MiddleLeft;
-		fileInfoLabel.Click += fileInfoLabel_Click;
 		// 
 		// workPanel
 		// 
@@ -139,21 +138,22 @@ public class FilePanel : UserControl
 		// infoPanel
 		// 
 		infoPanel.BackColor = Color.FromArgb(20, 20, 20);
-		infoPanel.Controls.Add(drvDirLabel);
+		infoPanel.Controls.Add(pathLabel);
 		infoPanel.Dock = DockStyle.Top;
 		infoPanel.Location = new Point(0, 20);
 		infoPanel.Name = "infoPanel";
 		infoPanel.Size = new Size(398, 20);
 		infoPanel.TabIndex = 3;
 		// 
-		// drvDirLabel
+		// pathLabel
 		// 
-		drvDirLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-		drvDirLabel.Font = new Font("Microsoft Sans Serif", 8.25F);
-		drvDirLabel.Location = new Point(3, 0);
-		drvDirLabel.Name = "drvDirLabel";
-		drvDirLabel.Size = new Size(392, 20);
-		drvDirLabel.TabIndex = 1;
+		pathLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+		pathLabel.Font = new Font("맑은 고딕", 8.25F);
+		pathLabel.Location = new Point(3, 0);
+		pathLabel.Name = "pathLabel";
+		pathLabel.Size = new Size(392, 20);
+		pathLabel.TabIndex = 1;
+		pathLabel.PropertyClick += pathLabel_PropertyClick;
 		// 
 		// dirPanel
 		// 
@@ -220,7 +220,7 @@ public class FilePanel : UserControl
 		breadcrumbPath.TabIndex = 0;
 		breadcrumbPath.TabStop = false;
 		breadcrumbPath.Text = "breadcrumbPath";
-		breadcrumbPath.BreadcrumbPathClicked += breadcrumbPath_BreadcrumbPathClicked;
+		breadcrumbPath.PathClick += breadcrumbPath_PathClick;
 		// 
 		// pathTextBox
 		// 
@@ -314,7 +314,7 @@ public class FilePanel : UserControl
 		SetActivePanel(false);
 	}
 
-	private void tabStrip_CloseClicked(object? sender, TabStripCloseClickedEventArgs e)
+	private void tabStrip_CloseClick(object? sender, TabStripCloseClickEventArgs e)
 	{
 		tabStrip.RemoveTabAt(e.Index);
 	}
@@ -325,15 +325,15 @@ public class FilePanel : UserControl
 		{
 			if (!NavigateTo(path))
 			{
-				// 경로가 이상하다. 기본 경로로 돌아간다
-				// 이것도 잘못되면.. 모르겠다
-				// TODO: 경로가 잘못되면 탭을 닫아야 하는데, 안했다.
-				NavigateTo(Settings.Instance.StartFolder);
+				if (tabStrip.Count > 1)
+					tabStrip.RemoveTabAt(e.Index);
+				else
+					NavigateTo(Settings.Instance.StartFolder);
 			}
 		}
 	}
 
-	private void tabStrip_Clicked(object? sender, TabStripClickedEventArgs e)
+	private void tabStrip_ElementClick(object? sender, TabStripElementClickEventArgs e)
 	{
 		if (e.Element is TabStripElement.Tab or TabStripElement.None)
 		{
@@ -440,15 +440,15 @@ public class FilePanel : UserControl
 		menu.Show(historyButton, new Point(0, historyButton.Height));
 	}
 
-	private void breadcrumbPath_BreadcrumbPathClicked(object? sender, BreadcrumbPathClickedEventArgs e)
+	private void breadcrumbPath_PathClick(object? sender, BreadcrumbPathClickEventArgs e)
 	{
 		if (e.Button == MouseButtons.Left)
 			NavigateTo(e.Path);
 	}
 
-	private void fileInfoLabel_Click(object? sender, EventArgs e)
+	private void pathLabel_PropertyClick(object? sender, PathLabelPropertyClickEventArgs e)
 	{
-
+		MainForm?.ExcuteShowProperties((Control)sender!, e.Path);
 	}
 
 	private void fileList_MouseDown(object? sender, MouseEventArgs e)
@@ -502,7 +502,11 @@ public class FilePanel : UserControl
 			case null:
 				break;
 			case FileListFileItem fileItem:
+			{
+				var fi = fileItem.Info;
+				MainForm?.ExcuteProcess(fi);
 				break;
+			}
 			case FileListFolderItem dirItem:
 			{
 				var di = dirItem.Info;
@@ -521,7 +525,13 @@ public class FilePanel : UserControl
 
 	private void fileList_ItemClicked(object? sender, FileListClickEventArgs e)
 	{
-
+		if (e.Button == MouseButtons.Right)
+		{
+			// 오른쪽 눌리면 쉘 컨텍스트 메뉴를 띄운다
+			var l = fileList.GetSelectedOrFocused();
+			if (l.Count > 0)
+				MainForm?.ExcuteShowContextMenu(fileList, e.ScreenLocation, l);
+		}
 	}
 
 	private void fileList_SelectChanged(object? sender, FileListSelectChangedEventArgs e)
@@ -530,13 +540,13 @@ public class FilePanel : UserControl
 		if (count == 0)
 		{
 			// 선택이 없으면 드라이브 정보
-			var drive = _current  == null ? null : new DriveInfo(_current.Root.FullName);
-			drvDirLabel.SetDriveInfo(drive);
+			var drive = _current == null ? null : new DriveInfo(_current.Root.FullName);
+			pathLabel.SetDriveInfo(drive);
 		}
 		else
 		{
 			// 아니면 선택 정보
-			drvDirLabel.SetSelectedInfo(count, fileList.GetSelectedSize());
+			pathLabel.SetSelectedInfo(count, fileList.GetSelectedSize());
 		}
 	}
 
@@ -546,7 +556,7 @@ public class FilePanel : UserControl
 			return false;
 
 		var settings = Settings.Instance;
-		var showHidden = settings.ShowHiddenFiles;
+		var showHidden = settings.ShowHidden;
 
 		_current = new DirectoryInfo(folder);
 		breadcrumbPath.Path = folder;
@@ -617,11 +627,11 @@ public class FilePanel : UserControl
 		fileList.SelectName(selection);
 
 		// 폴더 정보
-		drvDirLabel.SetFolderInfo(dirCount, fileCount, totalSize);
+		pathLabel.SetFolderInfo(_current.FullName, dirCount, fileCount, totalSize);
 
 		// 드라이브 정보
 		var drive = new DriveInfo(_current.Root.FullName);
-		drvDirLabel.SetDriveInfo(drive);
+		pathLabel.SetDriveInfo(drive);
 
 		return true;
 	}

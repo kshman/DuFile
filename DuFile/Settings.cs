@@ -315,7 +315,7 @@ internal class Settings
 
 	public int SortOrder
 	{
-		get => GetInt("SortOrder"); // 0: 정렬 안함, 1: 이름, 2: 확장자, 3: 크기, 4: 시간, 5: 속성, 6: 색상
+		get => GetInt("SortOrder"); // 0: 이름, 1: 확장자, 2: 크기, 3: 시간, 4: 속성, 5: 색상
 		set => SetInt("SortOrder", value);
 	}
 
@@ -325,10 +325,10 @@ internal class Settings
 		set => SetBool("SortDescending", value);
 	}
 
-	public bool ShowHiddenFiles
+	public bool ShowHidden
 	{
-		get => GetBool("ShowHiddenFiles");
-		set => SetBool("ShowHiddenFiles", value);
+		get => GetBool("ShowHidden");
+		set => SetBool("ShowHidden", value);
 	}
 
 	public string GetFuncKeyCommand(int functionKey, ModifierKey modifier)

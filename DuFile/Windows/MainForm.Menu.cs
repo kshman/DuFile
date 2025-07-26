@@ -1,17 +1,11 @@
-﻿using System.Reflection;
-// ReSharper disable MissingXmlDoc
+﻿// ReSharper disable MissingXmlDoc
 
 namespace DuFile.Windows;
 
 public partial class MainForm
 {
-	private ToolStripMenuItem? _menuAlignOrder;         // 정렬 메뉴의 오름차순/내림차순 토글을 위한 변수
-	private ToolStripMenuItem? _menuOrderByName;        // 정렬 기준이 이름
-	private ToolStripMenuItem? _menuOrderByExt;         // 정렬 기준이 확장자
-	private ToolStripMenuItem? _menuOrderBySize;        // 정렬 기준이 크기	
-	private ToolStripMenuItem? _menuOrderByDateTime;    // 정렬 기준이 날짜/시간
-	private ToolStripMenuItem? _menuOrderByAttribute;   // 정렬 기준이 속성
-	private ToolStripMenuItem? _menuViewHidden;         // 숨김 파일 보기 토글을 위한 변수
+	private readonly Dictionary<string, ToolStripMenuItem> _menuItems = [];
+	private Dictionary<string, Action> _menuActions = [];
 
 	// 메뉴 정의
 	private static readonly MenuDef[] MainMenus =
@@ -96,9 +90,9 @@ public partial class MainForm
 		{
 			Text = "편집(&E)",
 			SubMenus = [
-				new MenuDef { Text = "복사(&C)", Command = Commands.None, Shortcut = "Ctrl+C" },
-				new MenuDef { Text = "붙여넣기(&V)", Command = Commands.None, Shortcut = "Ctrl+V" },
-				new MenuDef { Text = "잘라내기(&X)", Command = Commands.None, Shortcut = "Ctrl+X" },
+				new MenuDef { Text = "복사(&C)", Command = Commands.ClipboardCopy, Shortcut = "Ctrl+C" },
+				new MenuDef { Text = "붙여넣기(&V)", Command = Commands.ClipboardPaste, Shortcut = "Ctrl+V" },
+				new MenuDef { Text = "잘라내기(&X)", Command = Commands.ClipboardCut, Shortcut = "Ctrl+X" },
 				new MenuDef(),
 				new MenuDef { Text = "전체 경로 이름 복사(&L)", Command = Commands.None, Shortcut = "Ctrl+Alt+F" },
 				new MenuDef { Text = "파일 이름만 복사(&A)", Command = Commands.None, Shortcut = "Ctrl+Alt+A" },
@@ -131,18 +125,18 @@ public partial class MainForm
 				new MenuDef {
 					Text = "정렬(&A)",
 					SubMenus = [
-						new MenuDef { Text = "이름으로(&N)", Command = Commands.None, Shortcut = "Ctrl+Shift+N", Variable = "_menuOrderByName" },
-						new MenuDef { Text = "확장자로(&E)", Command = Commands.None, Shortcut = "Ctrl+Shift+E", Variable = "_menuOrderByExt" },
-						new MenuDef { Text = "크기로(&S)", Command = Commands.None, Shortcut = "Ctrl+Shift+S", Variable = "_menuOrderBySize" },
-						new MenuDef { Text = "날짜/시간으로(&T)", Command = Commands.None, Shortcut = "Ctrl+Shift+T", Variable = "_menuOrderByDateTime" },
-						new MenuDef { Text = "속성으로(&R)", Command = Commands.None, Shortcut = "Ctrl+Shift+R", Variable = "_menuOrderByAttribute" },
+						new MenuDef { Text = "이름으로(&N)", Command = Commands.SortByName, Shortcut = "Ctrl+Shift+1" },
+						new MenuDef { Text = "확장자로(&E)", Command = Commands.SortByExtension, Shortcut = "Ctrl+Shift+2" },
+						new MenuDef { Text = "크기로(&S)", Command = Commands.SortBySize, Shortcut = "Ctrl+Shift+3" },
+						new MenuDef { Text = "날짜/시간으로(&T)", Command = Commands.SortByDateTime, Shortcut = "Ctrl+Shift+4" },
+						new MenuDef { Text = "속성으로(&R)", Command = Commands.SortByAttribute, Shortcut = "Ctrl+Shift+5" },
 						new MenuDef(),
-						new MenuDef { Text = "내림차순(&D)", Command = Commands.None, Shortcut = "Ctrl+Shift+D", Variable = "_menuAlignOrder" },
+						new MenuDef { Text = "내림차순(&D)", Command = Commands.SortDesc, Shortcut = "Ctrl+Shift+D" },
 					]
 				},
 				new MenuDef { Text = "골라보기(&F)", Command = Commands.None },
 				new MenuDef(),
-				new MenuDef { Text = "숨김 파일 보기(&Z)", Command = Commands.None, Shortcut = "Alt+Z", Variable = "_menuViewHidden"},
+				new MenuDef { Text = "숨김 파일 보기(&Z)", Command = Commands.ShowHidden, Shortcut = "Alt+Z"},
 				new MenuDef(),
 				new MenuDef { Text = "새 탭(&T)", Command = Commands.None, Shortcut = "Ctrl+T" },
 				new MenuDef { Text = "탭 목록(&Y)", Command = Commands.None },
@@ -166,21 +160,22 @@ public partial class MainForm
 		}
 	];
 
-	// 메뉴 액션
-	private Dictionary<string, Action> _menuActions = [];
-
 	// 메뉴 초기화
 	private void IntiializeMenu()
 	{
+		// 메뉴 액션 등록 (먼저 등록 안하면 아이템 등록할 때 못찾는다
+		_menuActions = new Dictionary<string, Action>
+		{
+			{ Commands.None, MenuNone },
+			{ Commands.Exit, MenuExit },
+			// 계속 추가합시다.
+		};
+
+		// 메뉴 아이템 등록
 		var keyConverter = new KeysConverter();
 		AddMenuItems(keyConverter, menuStrip.Items, MainMenus);
 
-		_menuActions = new Dictionary<string, Action>
-		{
-			{ Commands.None, () => { } },
-			{ Commands.Exit, MenuFileExit },
-			// 여기에 다른 명령어와 해당 작업을 추가할 수 있습니다.
-		};
+		CheckMenuItem();
 	}
 
 	// 메뉴에 항목 넣기
@@ -188,86 +183,125 @@ public partial class MainForm
 	{
 		foreach (var menu in menus)
 		{
-			if (menu.Text == null)
+			if (string.IsNullOrEmpty(menu.Text))
 			{
 				items.Add(new ToolStripSeparator());
 				continue;
 			}
 
 			var menuItem = new ToolStripMenuItem(menu.Text);
-			menuItem.Click += MenuItem_Clicked;
 			if (menu.Shortcut != null)
 				menuItem.ShortcutKeys = Alter.ParseKeyString(keyConverter, menu.Shortcut);
 			if (menu.Disable)
 				menuItem.Enabled = false;
-			menuItem.Tag = menu.Command;
-			if (menu.Variable != null)
+
+			if (!string.IsNullOrEmpty(menu.Command))
 			{
-				// menu.Variable에 해당하는 MainForm의 필드 정보를 가져옴
-				var f = typeof(MainForm).GetField(menu.Variable, BindingFlags.Instance | BindingFlags.NonPublic);
-				if (f != null && f.FieldType == typeof(ToolStripMenuItem))
-					f.SetValue(this, menuItem);
+				_menuItems[menu.Command] = menuItem;
+
+				if (_menuActions.TryGetValue(menu.Command, out var action))
+					menuItem.Click += (_, _) => action.Invoke();
 			}
+
 			if (menu.SubMenus is { Length: > 0 })
 				AddMenuItems(keyConverter, menuItem.DropDownItems, menu.SubMenus);
 			items.Add(menuItem);
 		}
 	}
 
-	// 메뉴 항목 클릭 이벤트 핸들러
-	private void MenuItem_Clicked(object? sender, EventArgs args)
+	// 메뉴 체크
+	private void SetCheckMenuItem(string command, bool check)
 	{
-		if (sender is ToolStripMenuItem { Tag: string command })
-			ExecuteCommand(command);
+		if (_menuItems.TryGetValue(command, out var item))
+			item.Checked = check;
 	}
 
-	/// <summary>
-	/// Executes the specified command by invoking the associated action.
-	/// </summary>
-	/// <remarks>If the command is not found in the menu actions dictionary, an error message is displayed to the
-	/// user.</remarks>
-	/// <param name="command">The command to execute. This should be a key that exists in the menu actions dictionary.</param>
-	public void ExecuteCommand(string command)
+	// 체크 아이템 설정
+	private void CheckMenuItem()
+	{
+		var settings = Settings.Instance;
+		SetCheckMenuItem(Commands.ShowHidden, settings.ShowHidden);
+		SetCheckMenuItem(Commands.SortDesc, settings.SortDescending);
+		SetCheckMenuItem(Commands.SortByName, settings.SortOrder == 0);
+		SetCheckMenuItem(Commands.SortByExtension, settings.SortOrder == 1);
+		SetCheckMenuItem(Commands.SortBySize, settings.SortOrder == 2);
+		SetCheckMenuItem(Commands.SortByDateTime, settings.SortOrder == 3);
+		SetCheckMenuItem(Commands.SortByAttribute, settings.SortOrder == 4);
+	}
+
+	// 명령 호출
+	private void ExecuteCommand(string command)
 	{
 		if (_menuActions.TryGetValue(command, out var action))
 			action();
-		else
-			MessageBox.Show($"'{command}' 기능은 아직 구현되지 않았습니다.", "오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
 	}
 
 	// 파일 실행
-	public void ExcuteProcess(string filename)
+	public void ExcuteProcess(FileInfo? info, string? arguments = null)
 	{
-		if (string.IsNullOrEmpty(filename))
+		if (info == null)
 			return;
 		try
 		{
+			var (shell, args, directory) = arguments is null
+				? (true, string.Empty, string.Empty)
+				: (false, arguments, info.DirectoryName ?? string.Empty);
 			var process = new System.Diagnostics.Process
 			{
 				StartInfo = new System.Diagnostics.ProcessStartInfo
 				{
-					FileName = filename,
-					UseShellExecute = true,
-					ErrorDialog = true
+					FileName = info.FullName,
+					Arguments = args,
+					UseShellExecute = shell,
+					ErrorDialog = true,
+					WorkingDirectory = directory,
 				}
 			};
 			process.Start();
 		}
 		catch (Exception ex)
 		{
-			MessageBox.Show($"파일({filename})을 열 수 없어요!", "오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+			MessageBox.Show($"파일({info.Name})을 열 수 없어요!", "오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
 			Debugs.WriteLine($"파일 열기 오류: {ex.Message}");
 		}
 	}
 
 	// 쉘 메뉴 열기
-	public void ExcuteShellContextMenu(IWin32Window owner, Point screenPos, IList<string> files)
+	public void ExcuteShowContextMenu(IWin32Window owner, Point screenPos, IList<string> files)
 	{
-		ShellContextMenu.Show(owner, screenPos, files);
+		try
+		{
+			ShellContext.ShowMenu(owner, screenPos, files);
+		}
+		catch (Exception ex)
+		{
+			MessageBox.Show("컨텍스트 메뉴를 열 수 없어요!", "오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+			Debugs.WriteLine($"컨텍스트 메뉴 열기 오류: {ex.Message}");
+		}
+	}
+
+	// 쉘 속성 열기
+	public void ExcuteShowProperties(IWin32Window owner, string file)
+	{
+		try
+		{
+			ShellContext.ShowProperties(owner, file);
+		}
+		catch (Exception ex)
+		{
+			MessageBox.Show($"파일({file}) 속성을 열 수 없어요!", "오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+			Debugs.WriteLine($"속성 열기 오류: {ex.Message}");
+		}
+	}
+
+	// 없구먼
+	private void MenuNone()
+	{
+		MessageBox.Show("이 기능은 아직 구현되지 않았어요!", "오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
 	}
 
 	// 끝내기
-	private void MenuFileExit()
+	private void MenuExit()
 	{
 		Close();
 	}

@@ -37,7 +37,7 @@ public class BreadcrumbPath : Control
 	/// <summary>
 	/// BreadCrumb에서 폴더 클릭 시 발생하는 이벤트입니다.
 	/// </summary>
-	public event EventHandler<BreadcrumbPathClickedEventArgs>? BreadcrumbPathClicked;
+	public event EventHandler<BreadcrumbPathClickEventArgs>? PathClick;
 
 	// 디자인 모드 확인
 	bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
@@ -272,7 +272,7 @@ public class BreadcrumbPath : Control
 		if (_hoverEllipsis && _ellipsisRect != null)
 		{
 			// ...을 클릭하면 0번째(최상위) 폴더 클릭으로 간주하거나, 필요에 따라 이벤트를 확장할 수 있음
-			BreadcrumbPathClicked?.Invoke(this, new BreadcrumbPathClickedEventArgs(GetDirectoryPath(0), e.Location, e.Button));
+			PathClick?.Invoke(this, new BreadcrumbPathClickEventArgs(GetDirectoryPath(0), e.Location, e.Button));
 			return;
 		}
 
@@ -280,7 +280,7 @@ public class BreadcrumbPath : Control
 		if (idx < 0)
 			return;
 
-		BreadcrumbPathClicked?.Invoke(this, new BreadcrumbPathClickedEventArgs(GetDirectoryPath(idx), e.Location, e.Button));
+		PathClick?.Invoke(this, new BreadcrumbPathClickEventArgs(GetDirectoryPath(idx), e.Location, e.Button));
 	}
 
 	/// <summary>
@@ -317,7 +317,7 @@ public class BreadcrumbPath : Control
 /// <summary>
 /// Breadcrumb 클릭 이벤트 데이터
 /// </summary>
-public class BreadcrumbPathClickedEventArgs(string path, Point location, MouseButtons button) : EventArgs
+public class BreadcrumbPathClickEventArgs(string path, Point location, MouseButtons button) : EventArgs
 {
 	/// <summary>해당 폴더 경로</summary>
 	public string Path { get; } = path;

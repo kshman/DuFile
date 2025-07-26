@@ -1,55 +1,26 @@
 ﻿namespace DuFile.Windows;
 
 /// <summary>
-/// 폴더/파일/드라이브 정보를 한 줄에 이미지처럼 표시하는 커스텀 라벨 컨트롤입니다.
+/// 폴더, 파일, 드라이브 정보를 한 줄로 이미지처럼 표시하는 커스텀 라벨 컨트롤입니다.
 /// </summary>
 public sealed class PathLabel : Control
 {
-	// 폴더 개수
-	private int _folderCount;
-	// 파일 개수
-	private int _fileCount;
-	// 전체 크기 문자열
-	private string _totalSize = string.Empty;
-	// 드라이브 레이블
-	private string _drvLabel = string.Empty;
-	// 드라이브 이름
-	private string _drvName = string.Empty;
-	// 드라이브 남은 용량 문자열
-	private string _drvAvailable = string.Empty;
-	// 선택 상태
-	private string _selected = string.Empty;
+	// 폴더 정보
+	private FolderDef _folder;
+	// 드라이브 정보
+	private DriveDef _drive;
 	// 활성화 상태
 	private bool _isActive;
 
-	// 왼쪽 텍스트 영역
-	private Rectangle _leftRect = Rectangle.Empty;
-	// 오른쪽 텍스트 영역
-	private Rectangle _rightRect = Rectangle.Empty;
-
-	// 왼쪽 마우스 오버 상태
-	private bool _leftHover;
-	// 오른쪽 마우스 오버 상태
-	private bool _rightHover;
-
 	/// <summary>
-	/// 폴더 라벨이 클릭될 때 발생합니다.
-	/// </summary>
-	/// <remarks>
-	/// 사용자가 UI에서 폴더 라벨을 클릭할 때마다 발생합니다. 구독자는 이 이벤트를 처리하여 폴더로 이동하거나 추가 정보를 표시하는 등의 작업을 수행할 수 있습니다.
-	/// </remarks>
-	[Category("PathLabel")]
-	public event EventHandler<PathLabelClickedEventArgs>? Clicked;
-
-	/// <summary>
-	/// 고정 높이 값을 가져옵니다.
+	/// 고정된 높이 값을 반환합니다.
 	/// </summary>
 	[Browsable(false)]
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 	public int StaticHeight => 20;
 
 	/// <summary>
-	/// 현재 컨트롤이 활성 상태인지 여부를 가져오거나 설정합니다.
+	/// 현재 컨트롤이 활성 상태인지 가져오거나 설정합니다.
 	/// </summary>
 	[Browsable(false)]
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -63,14 +34,23 @@ public sealed class PathLabel : Control
 		}
 	}
 
-	// 디자인 모드 확인
+	/// <summary>
+	/// 폴더 라벨이 클릭될 때 발생하는 이벤트입니다.
+	/// </summary>
+	/// <remarks>
+	/// 사용자가 UI에서 폴더 라벨을 클릭할 때마다 발생합니다. 이 이벤트를 구독하면 폴더 이동, 정보 표시 등 원하는 동작을 구현할 수 있습니다.
+	/// </remarks>
+	[Category("PathLabel")]
+	public event EventHandler<PathLabelPropertyClickEventArgs>? PropertyClick;
+
+	// 디자인 모드 여부 확인
 	private bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
 
 	/// <summary>
-	/// PathLabel 클래스의 새 인스턴스를 초기화합니다. (기본 스타일 및 테마 적용)
+	/// PathLabel의 새 인스턴스를 초기화합니다. (기본 스타일 및 테마 적용)
 	/// </summary>
 	/// <remarks>
-	/// 이 생성자는 최적화된 더블 버퍼링과 사용자 지정 페인팅을 위한 컨트롤 스타일을 설정하여 렌더링 성능을 향상시킵니다. 또한 애플리케이션 설정에 지정된 배경색, 전경색, 폰트 등 현재 테마 설정을 적용합니다.
+	/// 이 생성자는 더블 버퍼링, 사용자 지정 페인팅 등 컨트롤 스타일을 설정하여 렌더링 성능을 높이고, 테마 설정을 적용합니다.
 	/// </remarks>
 	public PathLabel()
 	{
@@ -78,7 +58,7 @@ public sealed class PathLabel : Control
 		TabStop = true;
 
 		var settings = Settings.Instance;
-		Font = new Font(settings.UiFontFamily, 8.25f, FontStyle.Regular, GraphicsUnit.Point);
+		Font = new Font(settings.UiFontFamily, 10.0f, FontStyle.Regular, GraphicsUnit.Point);
 		Height = StaticHeight;
 	}
 
@@ -90,7 +70,7 @@ public sealed class PathLabel : Control
 		if (IsReallyDesignMode)
 		{
 			// 디자인 모드에서 기본 값 설정
-			SetFolderInfo(10, 20, 1234567);
+			SetFolderInfo(string.Empty, 10, 20, 1234567);
 			SetDriveInfo(null);
 		}
 	}
@@ -98,52 +78,75 @@ public sealed class PathLabel : Control
 	/// <summary>
 	/// 왼쪽 폴더/파일 정보를 갱신합니다.
 	/// </summary>
+	/// <param name="fullName">폴더 이름</param>
 	/// <param name="dirCount">폴더 개수</param>
 	/// <param name="fileCount">파일 개수</param>
 	/// <param name="totalSize">전체 크기(바이트)</param>
-	public void SetFolderInfo(int dirCount, int fileCount, long totalSize)
+	public void SetFolderInfo(string fullName, int dirCount, int fileCount, long totalSize)
 	{
-		_folderCount = dirCount;
-		_fileCount = fileCount;
-		_totalSize = totalSize.FormatFileSize();
+		_folder.FullName = fullName;
+		_folder.Count = dirCount;
+		_folder.FileCount = fileCount;
+		_folder.TotalSize = totalSize;
 		Invalidate();
 	}
 
 	/// <summary>
-	/// 오른쪽 드라이브 정보를 갱신합니다. <see cref="DriveInfo"/> 
+	/// 오른쪽 드라이브 정보를 갱신합니다.
 	/// </summary>
-	/// <param name="drive">드라이브 정보가 담긴 <see cref="DriveInfo"/> 오브젝트</param>
+	/// <param name="drive">드라이브 정보가 담긴 <see cref="DriveInfo"/> 객체</param>
 	public void SetDriveInfo(DriveInfo? drive)
 	{
 		if (drive == null)
 		{
-			_drvLabel = "알 수 없음";
-			_drvName = "??";
-			_drvAvailable = "0 B";
+			_drive.FullName = string.Empty;
+			_drive.Name = "??";
+			_drive.Label = "알 수 없음";
+			_drive.Available = 0;
 		}
 		else
 		{
-			_drvLabel = drive.VolumeLabel;
-			_drvName = drive.Name.TrimEnd('\\');
-			_drvAvailable = drive.AvailableFreeSpace.FormatFileSize();
+			_drive.FullName = drive.Name;
+			_drive.Name = drive.Name.TrimEnd('\\');
+			_drive.Label = drive.VolumeLabel;
+			_drive.Available = drive.AvailableFreeSpace;
 		}
 
-		_selected = string.Empty;
+		_drive.Selected = string.Empty;
 		Invalidate();
 	}
 
 	/// <summary>
-	/// Updates the selected information display with the specified count and size.
+	/// 선택된 항목 개수와 크기로 선택 정보 표시를 갱신합니다.
 	/// </summary>
-	/// <remarks>This method updates the internal state to reflect the current selection and triggers a redraw of
-	/// the display.</remarks>
-	/// <param name="count">The number of selected items. Must be non-negative.</param>
-	/// <param name="size">The total size of the selected items, formatted as a number with thousands separators.</param>
+	/// <param name="count">선택된 항목 개수(0 이상)</param>
+	/// <param name="size">선택된 항목의 전체 크기(바이트, 천 단위 구분 포함)</param>
 	public void SetSelectedInfo(int count, long size)
 	{
-		_selected = $"선택: {count}개 ({size:N0} 바이트)";
+		_drive.Selected = $"{count}개 ({size:N0} 바이트)";
 		Invalidate();
 	}
+
+	/// <summary>
+	/// 드라이브의 선택 정보를 초기화(비움)합니다.
+	/// </summary>
+	public void ResetSelectedInfo()
+	{
+		_drive.Selected = string.Empty;
+		Invalidate();
+	}
+
+	// 문자열을 그리는 헬퍼 메서드
+	private float DrawString(Graphics g, string text, Brush brush, float x, float y)
+	{
+		var size = g.MeasureString(text, Font);
+		g.DrawString(text, Font, brush, x, y);
+		return size.Width;
+	}
+
+	// 문자열들의 너비를 측정하는 헬퍼 메서드
+	private float MeasureStrings(Graphics g, params string[] texts) =>
+		texts.Sum(text => g.MeasureString(text, Font).Width);
 
 	/// <inheritdoc />
 	protected override void OnPaint(PaintEventArgs e)
@@ -154,76 +157,42 @@ public sealed class PathLabel : Control
 		var g = e.Graphics;
 		g.Clear(IsActive ? theme.BackHover : theme.BackContent);
 
-		const string leftFolder = " 폴더, ";
-		const string leftFile = " 파일 ";
-		const string rightAvailable = " 남음";
+		const string LeftFolder = "폴더, ";
+		const string LeftFile = "파일 ";
+		const string RightAvailable = "남음";
 
-		var leftDirCount = $"{_folderCount}";
-		var leftFileCount = $"{_fileCount}";
-		var lefttotalSize = $"({_totalSize})";
-
-		var rightDrvName = $"{_drvLabel} ({_drvName}) ";
-		var rightDrvAvailable = $"{_drvAvailable}";
-
-		// 왼쪽 텍스트 측정 및 그리기
-		float x = 0;
-		var y = (Height - Font.Height) / 2;
 		using var highlightBrush = new SolidBrush(theme.Accelerator);
 		using var textBrush = new SolidBrush(theme.Foreground);
-		using var boldFont = new Font(Font, FontStyle.Bold);
+		var y = (Height - Font.Height) / 2;
+		float x = 0;
 
-		// [dirCount]
-		var sizeDirCount = g.MeasureString(leftDirCount, Font);
-		g.DrawString(leftDirCount, Font, highlightBrush, x, y);
-		x += sizeDirCount.Width;
-		// " 폴더, "
-		var sizeFolder = g.MeasureString(leftFolder, Font);
-		g.DrawString(leftFolder, Font, textBrush, x, y);
-		x += sizeFolder.Width;
-		// [fileCount]
-		var sizeFileCount = g.MeasureString(leftFileCount, Font);
-		g.DrawString(leftFileCount, Font, highlightBrush, x, y);
-		x += sizeFileCount.Width;
-		// " 파일 "
-		var sizeFile = g.MeasureString(leftFile, Font);
-		g.DrawString(leftFile, Font, textBrush, x, y);
-		x += sizeFile.Width;
-		// ([totalSize])
-		var sizeTotal = g.MeasureString(lefttotalSize, boldFont);
-		g.DrawString(lefttotalSize, boldFont, textBrush, x, y);
-		x += sizeTotal.Width;
-		// 왼쪽 텍스트 전체 영역 저장
-		_leftRect = new Rectangle(0, 0, (int)x, Height);
+		// 왼쪽
+		x += DrawString(g, $"{_folder.Count:N0}", highlightBrush, x, y);
+		x += DrawString(g, LeftFolder, textBrush, x, y);
+		x += DrawString(g, $"{_folder.FileCount:N0}", highlightBrush, x, y);
+		x += DrawString(g, LeftFile, textBrush, x, y);
+		x += DrawString(g, $"({_folder.TotalSize.FormatFileSize()})", textBrush, x, y);
+		_folder.Rect = new Rectangle(0, 0, (int)x, Height);
 
-		// 오른쪽 텍스트 측정 및 그리기
-		if (!string.IsNullOrEmpty(_selected))
+		// 오른쪽
+		if (!string.IsNullOrEmpty(_drive.Selected))
 		{
-			// 선택이 있으면 선택 정보 표시
-			var sizeSelected = g.MeasureString(_selected, Font);
-			var rx = Width - sizeSelected.Width;
-			// "선택: [count]개 ([size])"
-			g.DrawString(_selected, Font, highlightBrush, rx, y);
-			// 오른쪽 텍스트 전체 영역 저장
-			_rightRect = new Rectangle((int)rx, 0, Width - (int)rx, Height);
+			// 선택 정보가 있으면 선택 정보 표시
+			x = Width - MeasureStrings(g, _drive.Selected);
+			DrawString(g, _drive.Selected, highlightBrush, x, y);
+			_drive.Rect = new Rectangle((int)x, 0, Width - (int)x, Height);
 		}
 		else
 		{
-			// 아니면 드라이브 정보 표시
-			var sizeDrvName = g.MeasureString(rightDrvName, Font);
-			var sizeDrvAvailable = g.MeasureString(rightDrvAvailable, boldFont);
-			var sizeAvailable = g.MeasureString(rightAvailable, Font);
-			var rx = Width - (sizeDrvName.Width + sizeDrvAvailable.Width + sizeAvailable.Width);
-			var rightStart = rx;
-			// [drvLabel] ([drvName])
-			g.DrawString(rightDrvName, Font, textBrush, rx, y);
-			rx += sizeDrvName.Width;
-			// [drvAvailable] (파란색, Bold)
-			g.DrawString(rightDrvAvailable, boldFont, highlightBrush, rx, y);
-			rx += sizeDrvAvailable.Width;
-			// " 남음"
-			g.DrawString(rightAvailable, Font, textBrush, rx, y);
-			// 오른쪽 텍스트 전체 영역 저장
-			_rightRect = new Rectangle((int)rightStart, 0, Width - (int)rightStart, Height);
+			// 선택 정보가 없으면 드라이브 정보 표시
+			var name = $"{_drive.Label} ({_drive.Name}) ";
+			var available = _drive.Available.FormatFileSize();
+			var start = Width - MeasureStrings(g, name, available, RightAvailable);
+			x = start;
+			x += DrawString(g, name, textBrush, x, y);
+			x += DrawString(g, available, highlightBrush, x, y);
+			DrawString(g, RightAvailable, textBrush, x, y);
+			_drive.Rect = new Rectangle((int)start, 0, Width - (int)start, Height);
 		}
 	}
 
@@ -232,28 +201,28 @@ public sealed class PathLabel : Control
 	{
 		base.OnMouseMove(e);
 
-		switch (_leftRect.Contains(e.Location))
+		switch (_folder.Rect.Contains(e.Location))
 		{
-			case true when !_leftHover:
+			case true when !_folder.Hover:
 				Cursor = Cursors.Hand;
-				_leftHover = true;
+				_folder.Hover = true;
 				break;
-			case false when _leftHover:
-				_leftHover = false;
+			case false when _folder.Hover:
+				_folder.Hover = false;
 				Cursor = Cursors.Default;
 				break;
 		}
 
-		if (string.IsNullOrEmpty(_selected))
+		if (string.IsNullOrEmpty(_drive.Selected))
 		{
-			switch (_rightRect.Contains(e.Location))
+			switch (_drive.Rect.Contains(e.Location))
 			{
-				case true when !_rightHover:
+				case true when !_drive.Hover:
 					Cursor = Cursors.Hand;
-					_rightHover = true;
+					_drive.Hover = true;
 					break;
-				case false when _rightHover:
-					_rightHover = false;
+				case false when _drive.Hover:
+					_drive.Hover = false;
 					Cursor = Cursors.Default;
 					break;
 			}
@@ -264,8 +233,8 @@ public sealed class PathLabel : Control
 	protected override void OnMouseLeave(EventArgs e)
 	{
 		base.OnMouseLeave(e);
-		_leftHover = false;
-		_rightHover = false;
+		_folder.Hover = false;
+		_drive.Hover = false;
 		Cursor = Cursors.Default;
 	}
 
@@ -275,46 +244,71 @@ public sealed class PathLabel : Control
 		base.OnMouseDown(e);
 		Focus();
 
-		if (e.Button != MouseButtons.Left || Clicked == null)
+		if (e.Button != MouseButtons.Left || PropertyClick == null)
 			return;
 
-		if (_leftRect.Contains(e.Location))
-			Clicked.Invoke(this, 
-				new PathLabelClickedEventArgs(e.Location, PointToScreen(e.Location), PathLabelArea.Folder));
-		else if (_rightRect.Contains(e.Location) && string.IsNullOrEmpty(_selected))
-			Clicked.Invoke(this, 
-				new PathLabelClickedEventArgs(e.Location, PointToScreen(e.Location), PathLabelArea.Drive));
+		var path =
+			_folder.Rect.Contains(e.Location) ? _folder.FullName :
+			_drive.Rect.Contains(e.Location) && string.IsNullOrEmpty(_drive.Selected) ? _drive.FullName :
+			null;
+		if (!string.IsNullOrEmpty(path))
+			PropertyClick.Invoke(this, new PathLabelPropertyClickEventArgs(this, e.Location, path));
+	}
+
+	// 폴더 정보 구조체
+	private struct FolderDef
+	{
+		public string FullName { get; set; }
+		public int Count { get; set; }
+		public int FileCount { get; set; }
+		public long TotalSize { get; set; }
+		public Rectangle Rect { get; set; }
+		public bool Hover { get; set; }
+	}
+
+	// 드라이브 정보 구조체
+	private struct DriveDef
+	{
+		public string FullName { get; set; }
+		public string Name { get; set; }
+		public string Label { get; set; }
+		public long Available { get; set; }
+		public string Selected { get; set; }
+		public Rectangle Rect { get; set; }
+		public bool Hover { get; set; }
 	}
 }
 
 /// <summary>
-/// PathLabel에서 클릭된 영역 정보를 제공합니다.
+/// PathLabel 클릭 이벤트 인수 클래스입니다.
 /// </summary>
-public enum PathLabelArea
-{
-	/// <summary>왼쪽 폴더 영역을 나타냅니다.</summary>
-	Folder,
-	/// <summary>오른쪽 드라이브 영역을 나타냅니다.</summary>
-	Drive
-}
-
-/// <summary>
-/// PathLabel 클릭 이벤트 인수.
-/// </summary>
-public class PathLabelClickedEventArgs(Point location, Point scrLocation, PathLabelArea area) : EventArgs
+public class PathLabelPropertyClickEventArgs : EventArgs
 {
 	/// <summary>
-	/// 클릭된 위치를 가져옵니다.
+	/// 클릭된 위치(컨트롤 내 상대 좌표)입니다.
 	/// </summary>
-	public Point Location { get; } = location;
+	public Point Location { get; }
 
 	/// <summary>
-	/// Gets the screen coordinates of the current object.
+	/// 클릭된 위치의 스크린 좌표입니다.
 	/// </summary>
-	public Point ScreenLocation { get; } = scrLocation;
+	public Point ScreenLocation { get; }
 
 	/// <summary>
-	/// 클릭된 영역(왼쪽/오른쪽)을 가져옵니다.
+	/// 클릭한 경로(폴더 또는 드라이브)입니다.
 	/// </summary>
-	public PathLabelArea Area { get; } = area;
+	public string Path { get; }
+
+	/// <summary>
+	/// PathLabelPropertyClickEventArgs를 생성합니다.
+	/// </summary>
+	/// <param name="control">클릭된 PathLabel 컨트롤</param>
+	/// <param name="location">클릭 위치(컨트롤 내 좌표)</param>
+	/// <param name="path">클릭한 경로</param>
+	public PathLabelPropertyClickEventArgs(PathLabel control, Point location, string path)
+	{
+		Location = location;
+		ScreenLocation = control.PointToScreen(location);
+		Path = path;
+	}
 }

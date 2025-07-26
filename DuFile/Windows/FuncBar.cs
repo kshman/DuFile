@@ -24,7 +24,7 @@ public sealed class FuncBar : Control
 	/// <summary>
 	/// 버튼 클릭 시 발생하는 이벤트입니다.
 	/// </summary>
-	public event EventHandler<FuncBarButtonClickedEventArgs>? ButtonClicked;
+	public event EventHandler<FuncBarButtonClickEventArgs>? ButtonClick;
 
 	/// <inheritdoc/>
 	public FuncBar()
@@ -93,7 +93,7 @@ public sealed class FuncBar : Control
 			if (string.IsNullOrEmpty(cmd))
 				continue;
 
-			var text = cmd[0] == '#' ? Commands.FriendlyName(cmd) : Path.GetFileName(cmd);
+			var text = cmd[0] == '#' ? Commands.ToFriendlyName(cmd) : Path.GetFileName(cmd);
 			var textRect = new Rectangle(rect.Left + accelSize.Width, rect.Top, rect.Width - accelSize.Width, rect.Height);
 			TextRenderer.DrawText(e.Graphics, text, font, textRect, theme.Foreground,
 				TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
@@ -127,7 +127,7 @@ public sealed class FuncBar : Control
 		{
 			var num = FuncNumbers[_pressedIndex.Value];
 			var cmd = Settings.Instance.GetFuncKeyCommand(num, _modifier);
-			ButtonClicked?.Invoke(this, new FuncBarButtonClickedEventArgs(_pressedIndex.Value, num, cmd));
+			ButtonClick?.Invoke(this, new FuncBarButtonClickEventArgs(_pressedIndex.Value, num, cmd));
 		}
 		_pressedIndex = null;
 		Invalidate();
@@ -205,7 +205,7 @@ public sealed class FuncBar : Control
 /// <summary>
 /// FuncBar 버튼 클릭 이벤트 데이터
 /// </summary>
-public class FuncBarButtonClickedEventArgs(int index, int funcKey, string command) : EventArgs
+public class FuncBarButtonClickEventArgs(int index, int funcKey, string command) : EventArgs
 {
 	/// <summary>버튼 인덱스</summary>
 	public int Index { get; } = index;

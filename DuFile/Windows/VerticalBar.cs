@@ -42,7 +42,7 @@ public sealed class VerticalBar : Control
 	/// <summary>
 	/// VerticalBar에서 버튼이 클릭될 때 발생하는 이벤트입니다.
 	/// </summary>
-	public event EventHandler<VerticalBarButtonClickedEventArgs>? ButtonClicked;
+	public event EventHandler<VerticalBarButtonClickEventArgs>? ButtonClick;
 
 	/// <summary>
 	/// VerticalBar의 인스턴스를 초기화합니다.
@@ -182,7 +182,7 @@ public sealed class VerticalBar : Control
 		if (_pressedIndex != null && _buttonRects[_pressedIndex.Value].Contains(e.Location))
 		{
 			var def = _buttonDefs[_pressedIndex.Value];
-			ButtonClicked?.Invoke(this, new VerticalBarButtonClickedEventArgs(def.Command, e.Location, e.Button, e.Clicks));
+			ButtonClick?.Invoke(this, new VerticalBarButtonClickEventArgs(def.Command, e.Location, e.Button, e.Clicks));
 		}
 
 		_pressedIndex = null;
@@ -201,7 +201,7 @@ public sealed class VerticalBar : Control
 /// <summary>
 /// VerticalBar의 버튼 클릭 이벤트 인수입니다.
 /// </summary>
-public class VerticalBarButtonClickedEventArgs(string command, Point location, MouseButtons button, int clicks) : EventArgs
+public class VerticalBarButtonClickEventArgs(string command, Point location, MouseButtons button, int clicks) : EventArgs
 {
 	/// <summary>
 	/// 클릭된 버튼의 명령 문자열입니다.
