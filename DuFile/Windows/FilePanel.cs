@@ -8,7 +8,7 @@ namespace DuFile.Windows;
 /// It includes features such as displaying directory information, managing tabs, and handling user interactions through
 /// context menus. The control is designed to be integrated into a larger application where file management is
 /// required.</remarks>
-public class FilePanel : UserControl
+public class FilePanel : UserControl, IThemeUpate
 {
 #nullable disable
 	private TabStrip tabStrip;
@@ -51,7 +51,6 @@ public class FilePanel : UserControl
 		TabStop = true;
 
 		InitializeComponent();
-		ApplyTheme();
 	}
 
 	private void InitializeComponent()
@@ -122,7 +121,6 @@ public class FilePanel : UserControl
 		// 
 		fileList.BackColor = Color.FromArgb(20, 20, 20);
 		fileList.Dock = DockStyle.Fill;
-		fileList.Font = new Font("맑은 고딕", 10F);
 		fileList.ForeColor = Color.FromArgb(241, 241, 241);
 		fileList.Location = new Point(0, 40);
 		fileList.Name = "fileList";
@@ -148,7 +146,6 @@ public class FilePanel : UserControl
 		// pathLabel
 		// 
 		pathLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-		pathLabel.Font = new Font("맑은 고딕", 8.25F);
 		pathLabel.Location = new Point(3, 0);
 		pathLabel.Name = "pathLabel";
 		pathLabel.Size = new Size(392, 20);
@@ -250,10 +247,8 @@ public class FilePanel : UserControl
 
 	}
 
-	private void ApplyTheme()
+	public void UpdateTheme(Theme theme)
 	{
-		var theme = Settings.Instance.Theme;
-
 		BackColor = theme.Background;
 		ForeColor = theme.Foreground;
 
@@ -289,6 +284,12 @@ public class FilePanel : UserControl
 			SaveTabs();
 
 		base.Dispose(disposing);
+	}
+
+	protected override void OnCreateControl()
+	{
+		base.OnCreateControl();
+		UpdateTheme(Settings.Instance.Theme);
 	}
 
 	/// <inheritdoc />
@@ -546,7 +547,7 @@ public class FilePanel : UserControl
 		else
 		{
 			// 아니면 선택 정보
-			pathLabel.SetSelectedInfo(count, fileList.GetSelectedSize());
+			pathLabel.SetSelectionInfo(count, fileList.GetSelectedSize());
 		}
 	}
 
@@ -624,7 +625,7 @@ public class FilePanel : UserControl
 		}
 
 		fileList.EndUpdate();
-		fileList.SelectName(selection);
+		fileList.FocusName(selection);
 
 		// 폴더 정보
 		pathLabel.SetFolderInfo(_current.FullName, dirCount, fileCount, totalSize);

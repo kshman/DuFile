@@ -17,7 +17,10 @@ internal class Settings
 
 	public static Settings Instance => _instance ??= new Settings();
 
-	private string InitialStartFolder => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+	private static string InitialStartFolder => 
+		Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+	private static string LocalApplicationDataFolder =>
+		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
 	private Settings()
 	{
@@ -26,7 +29,7 @@ internal class Settings
 
 	public void Initialize(bool initializeDatabase)
 	{
-		var appPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ksh");
+		var appPath = Path.Combine(LocalApplicationDataFolder, "ksh");
 		if (!Directory.Exists(appPath))
 			Directory.CreateDirectory(appPath);
 		var configPath = Path.Combine(appPath, "DuFile.conf");
@@ -288,6 +291,8 @@ internal class Settings
 		set => SetBool("CharCase", value);
 	}
 
+#if false
+	// 글꼴 관련 기능은 테마 설정으로 옮김
 	public string UiFontFamily
 	{
 		get => GetString("UiFontFamily", "맑은 고딕");
@@ -312,6 +317,7 @@ internal class Settings
 		get => GetFloat("FileFontSize", 10f);
 		set => SetFloat("FileFontSize", value);
 	}
+#endif
 
 	public int SortOrder
 	{

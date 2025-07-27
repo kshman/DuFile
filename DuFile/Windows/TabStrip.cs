@@ -4,7 +4,7 @@
 /// TabStrip 컨트롤은 탭 UI를 제공하는 사용자 지정 컨트롤입니다.
 /// 탭 추가/제거, 선택, 스크롤, 닫기 버튼, 탭 목록 메뉴 기능을 지원합니다.
 /// </summary>
-public class TabStrip : Control
+public class TabStrip : ThemeControl
 {
 	// 아이콘 크기
 	private int _iconSize = 16;
@@ -31,6 +31,14 @@ public class TabStrip : Control
 	private Rectangle _tabListButtonRect = Rectangle.Empty;
 	// 탭 목록 메뉴
 	private ContextMenuStrip? _tabListMenu;
+	// 탭 목록 버튼 글꼴
+	private Font? _tablistFont;
+	// 탭 목록 버튼 텍스트 정렬
+	private readonly StringFormat _tabListFormat = new()
+	{
+		Alignment = StringAlignment.Center,
+		LineAlignment = StringAlignment.Center
+	};
 
 	/// <summary>
 	/// 선택된 탭 위에 칠할 강조 사각형의 높이(포인트). 디자이너에서 변경 가능.
@@ -133,9 +141,6 @@ public class TabStrip : Control
 	[Category("TabStrip")]
 	public event EventHandler<TabStripElementClickEventArgs>? ElementClick;
 
-	// 디자인 모드 확인
-	bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
-
 	/// <summary>
 	/// TabStrip의 인스턴스를 초기화합니다.
 	/// </summary>
@@ -143,6 +148,12 @@ public class TabStrip : Control
 	{
 		SetStyle(ControlStyles.ResizeRedraw | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.Selectable, true);
 		Height = 28;
+	}
+
+	/// <inheritdoc />
+	protected override void OnUpdateTheme(Theme theme)
+	{
+		_tablistFont = new Font(theme.UiFontFamily, 13.0f, FontStyle.Bold, GraphicsUnit.Point);
 	}
 
 	/// <inheritdoc />
@@ -273,24 +284,22 @@ public class TabStrip : Control
 	{
 		base.OnPaint(e);
 
-		var settings = Settings.Instance;
-		var theme = settings.Theme;
+		var theme = Settings.Instance.Theme;
 		e.Graphics.Clear(theme.Background);
 
 		const int tabListBtnW = 22;
 		_tabListButtonRect = new Rectangle(2, 2, tabListBtnW, Height - 4);
 
-		using (Brush b = new SolidBrush(theme.BackContent))
+		using (var b = new SolidBrush(theme.BackContent))
 			e.Graphics.FillRectangle(b, _tabListButtonRect);
 		ControlPaint.DrawBorder(e.Graphics, _tabListButtonRect, theme.Border, ButtonBorderStyle.Solid);
 
 		// "≡" 문자로 목록 버튼 아이콘
-		using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-		using (var font = new Font(settings.UiFontFamily, 13, FontStyle.Bold))
-		using (Brush brush = new SolidBrush(theme.Foreground))
+		using (var brush = new SolidBrush(theme.Foreground))
 		{
+			var font = _tablistFont ?? Font;
 			e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
-			e.Graphics.DrawString("≡", font, brush, _tabListButtonRect, sf);
+			e.Graphics.DrawString("≡", font, brush, _tabListButtonRect, _tabListFormat);
 		}
 
 		// 스크롤 버튼 표시 여부 결정
@@ -353,7 +362,7 @@ public class TabStrip : Control
 
 			if (i == _selectedIndex && Tabs.Count > 1)
 			{
-				using (Brush closeBrush = new SolidBrush(theme.Accelerator))
+				using (var closeBrush = new SolidBrush(theme.Accelerator))
 					e.Graphics.FillEllipse(closeBrush, closeRect);
 				using (var pen = new Pen(theme.Foreground, 2))
 				{

@@ -3,7 +3,7 @@
 /// <summary>
 /// 폴더, 파일, 드라이브 정보를 한 줄로 이미지처럼 표시하는 커스텀 라벨 컨트롤입니다.
 /// </summary>
-public sealed class PathLabel : Control
+public sealed class PathLabel : ThemeControl
 {
 	// 폴더 정보
 	private FolderDef _folder;
@@ -43,9 +43,6 @@ public sealed class PathLabel : Control
 	[Category("PathLabel")]
 	public event EventHandler<PathLabelPropertyClickEventArgs>? PropertyClick;
 
-	// 디자인 모드 여부 확인
-	private bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
-
 	/// <summary>
 	/// PathLabel의 새 인스턴스를 초기화합니다. (기본 스타일 및 테마 적용)
 	/// </summary>
@@ -57,8 +54,6 @@ public sealed class PathLabel : Control
 		SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.Selectable, true);
 		TabStop = true;
 
-		var settings = Settings.Instance;
-		Font = new Font(settings.UiFontFamily, 10.0f, FontStyle.Regular, GraphicsUnit.Point);
 		Height = StaticHeight;
 	}
 
@@ -121,18 +116,9 @@ public sealed class PathLabel : Control
 	/// </summary>
 	/// <param name="count">선택된 항목 개수(0 이상)</param>
 	/// <param name="size">선택된 항목의 전체 크기(바이트, 천 단위 구분 포함)</param>
-	public void SetSelectedInfo(int count, long size)
+	public void SetSelectionInfo(int count, long size)
 	{
 		_drive.Selected = $"{count}개 ({size:N0} 바이트)";
-		Invalidate();
-	}
-
-	/// <summary>
-	/// 드라이브의 선택 정보를 초기화(비움)합니다.
-	/// </summary>
-	public void ResetSelectedInfo()
-	{
-		_drive.Selected = string.Empty;
 		Invalidate();
 	}
 

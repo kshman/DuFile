@@ -1,6 +1,10 @@
-﻿namespace DuFile;
+﻿// ReSharper disable MissingXmlDoc
+namespace DuFile;
 
-internal struct Theme
+/// <summary>
+/// 테마를 정의하는 구조체입니다.
+/// </summary>
+public struct Theme
 {
 	public Color Foreground = Color.FromArgb(241, 241, 241);
 	public Color Background = Color.FromArgb(37, 37, 37);
@@ -16,6 +20,12 @@ internal struct Theme
 	public Color Hidden = Color.FromArgb(255, 0, 0);
 	public Color ReadOnly = Color.FromArgb(255, 255, 0);
 
+	public string UiFontFamily = "맑은 고딕";
+	public float UiFontSize = 10.0f;
+
+	public string ContentFontFamily = "맑은 고딕";
+	public float ContentFontSize = 10.0f;
+
 	internal readonly Dictionary<string, Color> ColorExtension = [];
 
 	public Theme()
@@ -26,4 +36,12 @@ internal struct Theme
 	// 확장자 색깔 얻기
 	public Color GetColorExtension(string ext) =>
 		ColorExtension.GetValueOrDefault(ext.ToUpperInvariant(), Foreground);
+}
+
+/// <summary>
+/// Provides a method to update the current theme of the application.
+/// </summary>
+public interface IThemeUpate
+{
+	void UpdateTheme(Theme theme);
 }

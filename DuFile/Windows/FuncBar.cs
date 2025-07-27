@@ -4,7 +4,7 @@
 /// 기능 키(F2~F9 등) 버튼을 한 줄로 배열하는 커스텀 컨트롤입니다.
 /// 각 버튼은 커맨드 또는 외부 실행 파일과 연결할 수 있습니다.
 /// </summary>
-public sealed class FuncBar : Control
+public sealed class FuncBar : ThemeControl
 {
 	private const int MaxFuncCount = 8;
 	private static readonly int[] FuncNumbers = [2, 3, 4, 5, 6, 7, 8, 9];
@@ -33,16 +33,15 @@ public sealed class FuncBar : Control
 
 		SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
 
-		// 테마 색상 및 폰트는 Settings.Instance에서 가져옵니다.
-		var settings = Settings.Instance;
-		var theme = settings.Theme;
-
 		Dock = DockStyle.Bottom;
-		Height = ButtonHeight;
-		BackColor = theme.Border;
-		ForeColor = theme.Foreground;
-
 		DoubleBuffered = true;
+		Height = ButtonHeight;
+	}
+
+	/// <inheritdoc/>
+	protected override void OnUpdateTheme(Theme theme)
+	{
+		Font = new Font(theme.UiFontFamily, theme.UiFontSize, FontStyle.Bold, GraphicsUnit.Point);
 	}
 
 	/// <inheritdoc/>
@@ -61,7 +60,6 @@ public sealed class FuncBar : Control
 
 		var settings = Settings.Instance;
 		var theme = settings.Theme;
-		using var font = new Font(settings.UiFontFamily, settings.UiFontSize, FontStyle.Bold, GraphicsUnit.Point);
 
 		var buttonWidth = Width / MaxFuncCount;
 		var extraWidth = Width / MaxFuncCount;
@@ -85,9 +83,9 @@ public sealed class FuncBar : Control
 				e.Graphics.DrawRectangle(pen, rect);
 
 			var accel = $" F{num}";
-			TextRenderer.DrawText(e.Graphics, accel, font, rect, theme.Accelerator,
+			TextRenderer.DrawText(e.Graphics, accel, Font, rect, theme.Accelerator,
 				TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
-			var accelSize = TextRenderer.MeasureText(accel, font);
+			var accelSize = TextRenderer.MeasureText(accel, Font);
 
 			var cmd = settings.GetFuncKeyCommand(num, _modifier);
 			if (string.IsNullOrEmpty(cmd))
@@ -95,7 +93,7 @@ public sealed class FuncBar : Control
 
 			var text = cmd[0] == '#' ? Commands.ToFriendlyName(cmd) : Path.GetFileName(cmd);
 			var textRect = new Rectangle(rect.Left + accelSize.Width, rect.Top, rect.Width - accelSize.Width, rect.Height);
-			TextRenderer.DrawText(e.Graphics, text, font, textRect, theme.Foreground,
+			TextRenderer.DrawText(e.Graphics, text, Font, textRect, theme.Foreground,
 				TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
 		}
 	}

@@ -3,7 +3,7 @@
 /// <summary>
 /// 디렉터리 경로를 BreadCrumb 형식으로 보여주는 컨트롤입니다.
 /// </summary>
-public class BreadcrumbPath : Control
+public class BreadcrumbPath : ThemeControl
 {
 	private readonly List<string> _parts = [];
 	private readonly List<Rectangle> _partRects = [];
@@ -28,7 +28,7 @@ public class BreadcrumbPath : Control
 	public string[] Parts => _parts.ToArray();
 
 	/// <summary>
-	/// Gets the static height value.
+	/// BreadCrumb의 고정 높이입니다. 디자인 모드에서 사용됩니다.
 	/// </summary>
 	[Browsable(false)]
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -38,9 +38,6 @@ public class BreadcrumbPath : Control
 	/// BreadCrumb에서 폴더 클릭 시 발생하는 이벤트입니다.
 	/// </summary>
 	public event EventHandler<BreadcrumbPathClickEventArgs>? PathClick;
-
-	// 디자인 모드 확인
-	bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="BreadcrumbPath"/> class with default settings.
@@ -112,17 +109,15 @@ public class BreadcrumbPath : Control
 		if (_parts.Count == 0)
 			return;
 
-		var settings = Settings.Instance;
-		var theme = settings.Theme;
-
-		var font = new Font(settings.UiFontFamily, 8.25f, FontStyle.Regular);
 		const int partMargin = 0;
 		const int sepWidth = 20;
 		const int sepMargin = 0;
+
+		var theme = Settings.Instance.Theme;
 		var h = Height;
 
 		// 각 파트별 크기 측정
-		var partSizes = _parts.Select(p => TextRenderer.MeasureText(p, font).Width + partMargin * 2).ToList();
+		var partSizes = _parts.Select(p => TextRenderer.MeasureText(p, Font).Width + partMargin * 2).ToList();
 
 		// 보여줄 첫 파트 결정 (오른쪽은 반드시 다 보이게, 앞부분은 잘릴 수 있음)
 		var showStart = 0;
@@ -157,7 +152,7 @@ public class BreadcrumbPath : Control
 		if (showEllipsis)
 		{
 			_ellipsisRect = new Rectangle(x, 0, ellipsisWidth, h);
-			DrawEllipsis(e.Graphics, _ellipsisRect.Value, font, _hoverEllipsis ? theme.BackContent : theme.Background, theme.Foreground);
+			DrawEllipsis(e.Graphics, _ellipsisRect.Value, Font, _hoverEllipsis ? theme.BackContent : theme.Background, theme.Foreground);
 			x += ellipsisWidth;
 		}
 
@@ -172,7 +167,7 @@ public class BreadcrumbPath : Control
 			using (var brush = new SolidBrush(fill))
 				e.Graphics.FillRectangle(brush, rect);
 
-			TextRenderer.DrawText(e.Graphics, _parts[i], font, rect, theme.Foreground, 
+			TextRenderer.DrawText(e.Graphics, _parts[i], Font, rect, theme.Foreground, 
 				TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
 
 			// 분리자

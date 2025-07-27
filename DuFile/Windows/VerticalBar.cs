@@ -4,10 +4,11 @@
 /// VerticalBar 컨트롤은 파일 패널 사이에 위치하는 세로 방향의 커맨드 버튼 바입니다.
 /// 동기화, 복사, 선택, 정렬, 퀵 위치 이동 등 다양한 명령 버튼을 제공합니다.
 /// </summary>
-public sealed class VerticalBar : Control
+public sealed class VerticalBar : ThemeControl
 {
 	private record ButtonDef(int BottomMargin, string Text, string Command, string ToolTip);
 
+	// TODO: 이 값들은 전부 다른 값으로 바꼈으므로 의미없음. 고쳐야함.
 	private readonly ButtonDef[] _buttonDefs =
 	[
 		new(0, "→", "#SyncLeftToRight", "오른쪽 폴더를 같게"),
@@ -51,14 +52,16 @@ public sealed class VerticalBar : Control
 	{
 		SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.Selectable, true);
 
-		var theme = Settings.Instance.Theme;
-
 		DoubleBuffered = true;
 		Width = StaticWidth;
-		BackColor = theme.Background;
-		ForeColor = theme.Foreground;
 
 		RecalcButtonRects();
+	}
+
+	/// <inheritdoc />
+	protected override void OnUpdateTheme(Theme theme)
+	{
+		Font = new Font(theme.UiFontFamily, theme.UiFontSize, FontStyle.Bold, GraphicsUnit.Point);
 	}
 
 	/// <summary>
@@ -66,8 +69,8 @@ public sealed class VerticalBar : Control
 	/// </summary>
 	private void RecalcButtonRects()
 	{
-		const int height = 18;
-		var y = 0;
+		const int height = 20;
+		var y = 30;
 
 		_buttonRects = new Rectangle[_buttonDefs.Length];
 		for (var i = 0; i < _buttonDefs.Length; i++)
@@ -75,8 +78,6 @@ public sealed class VerticalBar : Control
 			_buttonRects[i] = new Rectangle(0, y, StaticWidth, height);
 			y += height + _buttonDefs[i].BottomMargin;
 		}
-
-		//Height = y;
 	}
 
 	/// <inheritdoc />
@@ -84,27 +85,23 @@ public sealed class VerticalBar : Control
 	{
 		base.OnPaint(e);
 
-		var settings = Settings.Instance;
-		var theme = settings.Theme;
-		var font = new Font(settings.UiFontFamily, 8F, FontStyle.Bold, GraphicsUnit.Point);
+		var theme = Settings.Instance.Theme;
 
 		for (var i = 0; i < _buttonDefs.Length; i++)
 		{
 			var rect = _buttonRects[i];
 			var def = _buttonDefs[i];
 
-			var fill =
-				_pressedIndex == i ? theme.BackActive :
-				_hoverIndex == i ? theme.BackHover :
-				theme.Background;
+			var (fore, fill) =
+				_pressedIndex == i ? (theme.Foreground, theme.BackActive) :
+				_hoverIndex == i ? (theme.Foreground, theme.BackHover) :
+				(theme.Drive, theme.Background);
 
 			using (var brush = new SolidBrush(fill))
 				e.Graphics.FillRectangle(brush, rect);
-			//using (var pen = new Pen(theme.Border))
-			//	e.Graphics.DrawRectangle(pen, rect);
 
 			TextRenderer.DrawText(
-				e.Graphics, def.Text, font, rect, theme.Foreground,
+				e.Graphics, def.Text, Font, rect, fore,
 				TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine
 			);
 		}
@@ -178,7 +175,7 @@ public sealed class VerticalBar : Control
 	protected override void OnMouseUp(MouseEventArgs e)
 	{
 		base.OnMouseUp(e);
-		
+
 		if (_pressedIndex != null && _buttonRects[_pressedIndex.Value].Contains(e.Location))
 		{
 			var def = _buttonDefs[_pressedIndex.Value];
