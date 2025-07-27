@@ -5,9 +5,9 @@
 /// </summary>
 public sealed class FileList : Control
 {
-	// 현재 뷰 모드 (롱리스트/숏리스트)
+	// 현재 뷰 모드 (롱리스트/숫리스트)
 	private FileListViewMode _viewMode = FileListViewMode.LongList;
-	// 숏리스트 모드의 컬럼 수
+	// 숫리스트 모드의 컬럼 수
 	private int _shortColumns = 1;
 	// 컬럼 너비 정보
 	private FileListWidths _widths;
@@ -15,13 +15,19 @@ public sealed class FileList : Control
 	private int _scrollOffset;
 	// 포커스된 인덱스
 	private int _focusedIndex = -1;
-	// Shift 선택 기준 인덱스
+	// 시프트키로 다중 선택 기준 인덱스
 	private int _anchorIndex = -1;
 	// 업데이트 중 여부
 	private bool _updating;
 
+	// 스크롤바 조작 관련 필드
+	private bool _scrollBarDragging;
+	private int _scrollBarDragOffset;
+	private Rectangle _scrollBarIndicatorRect = Rectangle.Empty;
+
 	/// <summary>리스트에 표시되는 항목 컬렉션입니다.</summary>
 	[Browsable(false)]
+	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 	public List<FileListItem> Items { get; } = [];
 
 	/// <summary>현재 디렉터리의 전체 경로입니다.</summary>
@@ -43,7 +49,7 @@ public sealed class FileList : Control
 		}
 	}
 
-	/// <summary>숏리스트 모드의 컬럼 수입니다.</summary>
+	/// <summary>숫리스트 모드의 컬럼 수입니다.</summary>
 	[Browsable(false)]
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 	public int ShortListColumnCount
@@ -55,6 +61,11 @@ public sealed class FileList : Control
 			Invalidate();
 		}
 	}
+
+	/// <summary>스크롤 바 높이입니다.</summary>
+	[Browsable(false)]
+	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+	public int ScrollBarHeight => 12;
 
 	/// <summary>현재 포커스된 항목의 인덱스입니다.</summary>
 	[Browsable(false)]
@@ -313,14 +324,40 @@ public sealed class FileList : Control
 		var theme = Settings.Instance.Theme;
 		g.Clear(theme.BackContent);
 
+		var showScrollBar = ShouldShowScrollBar();
+		var clientHeight = Height;
+		if (showScrollBar && _viewMode == FileListViewMode.LongList)
+			clientHeight -= ScrollBarHeight;
+
 		if (_viewMode == FileListViewMode.LongList)
-			DrawLongList(g, theme);
+			DrawLongList(g, theme, clientHeight);
 		else
 			DrawShortList(g, theme);
+
+		if (showScrollBar)
+			DrawScrollBar(g, theme);
+	}
+
+	// 스크롤바가 필요한지 미리 계산
+	private bool ShouldShowScrollBar()
+	{
+		if (_viewMode == FileListViewMode.ShortList)
+		{
+			var itemWidth = (Width - 4) / _shortColumns;
+			var totalCols = (Items.Count + _shortColumns - 1) / _shortColumns;
+			var contentLength = totalCols * itemWidth;
+			return contentLength > Width;
+		}
+		else // LongList
+		{
+			var itemHeight = Font.Height + 6;
+			var contentLength = Items.Count * itemHeight;
+			return contentLength > Height - ScrollBarHeight;
+		}
 	}
 
 	// 롱리스트 모드 그리기
-	private void DrawLongList(Graphics g, Theme theme)
+	private void DrawLongList(Graphics g, Theme theme, int clientHeight)
 	{
 		var itemHeight = Font.Height + 6;
 		var y = -_scrollOffset;
@@ -328,16 +365,18 @@ public sealed class FileList : Control
 		{
 			var item = Items[i];
 			var rect = new Rectangle(0, y, Width, itemHeight);
-			if (rect.Bottom < 0)
+			if (rect.Bottom <= 0)
 			{
 				y += itemHeight;
 				continue;
 			}
 
-			if (rect.Top > Height)
+			if (rect.Top >= clientHeight)
 				break;
 
-			item.DrawDetails(g, Font, rect, _widths, theme, i == FocusedIndex);
+			// 아이템이 출력 영역에 온전히 들어올 때만 출력
+			if (rect.Top >= 0 && rect.Bottom <= clientHeight)
+				item.DrawDetails(g, Font, rect, _widths, theme, i == FocusedIndex);
 			y += itemHeight;
 		}
 	}
@@ -348,6 +387,7 @@ public sealed class FileList : Control
 		var itemHeight = Font.Height + 6;
 		var itemWidth = (Width - 4) / _shortColumns;
 		var xOffset = -_scrollOffset;
+		var clientHeight = Height - ScrollBarHeight;
 		for (var i = 0; i < Items.Count; i++)
 		{
 			var item = Items[i];
@@ -357,34 +397,59 @@ public sealed class FileList : Control
 			var top = row * itemHeight;
 			var rect = new Rectangle(x, top, itemWidth, itemHeight);
 			if (rect.Right < 0 || rect.Left > Width) continue;
-			if (rect.Bottom < 0 || rect.Top > Height) continue;
-
-			item.DrawShort(g, Font, rect, theme, i == FocusedIndex);
+			if (rect.Bottom <= 0 || rect.Top >= clientHeight) continue;
+			// 아이템이 출력 영역에 온전히 들어올 때만 출력
+			if (rect.Top >= 0 && rect.Bottom <= clientHeight)
+				item.DrawShort(g, Font, rect, theme, i == FocusedIndex);
 		}
-
-		DrawShortListScrollBar(g, theme);
 	}
 
-	// 숏리스트 스크롤바 그리기
-	private void DrawShortListScrollBar(Graphics g, Theme theme)
+	// 스크롤바 그리기
+	private void DrawScrollBar(Graphics g, Theme theme)
 	{
-		var totalCols = (Items.Count + _shortColumns - 1) / _shortColumns;
-		var totalWidth = totalCols * ((Width - 4) / _shortColumns);
-		if (totalWidth <= Width)
-			return;
+		int contentLength, viewLength;
+		if (_viewMode == FileListViewMode.ShortList)
+		{
+			var itemWidth = (Width - 4) / _shortColumns;
+			var totalCols = (Items.Count + _shortColumns - 1) / _shortColumns;
+			contentLength = totalCols * itemWidth;
+			viewLength = Width;
+		}
+		else // LongList
+		{
+			var itemHeight = Font.Height + 6;
+			contentLength = Items.Count * itemHeight;
+			viewLength = Height - ScrollBarHeight;
+		}
 
-		var barHeight = 12;
-		var barRect = new Rectangle(0, Height - barHeight, Width, barHeight);
+		if (contentLength <= viewLength)
+		{
+			_scrollBarIndicatorRect = Rectangle.Empty;
+			return;
+		}
+
+		var barRect = new Rectangle(0, Height - ScrollBarHeight, Width, ScrollBarHeight);
 		g.FillRectangle(new SolidBrush(theme.BackContent), barRect);
 
-		var ratio = (float)Width / totalWidth;
-		var indicatorWidth = (int)(Width * ratio);
-		var indicatorX = (int)((float)_scrollOffset / (totalWidth - Width) * (Width - indicatorWidth));
-		var indicatorRect = new Rectangle(indicatorX, barRect.Top, indicatorWidth, barHeight);
-		g.FillRectangle(new SolidBrush(theme.BackSelection), indicatorRect);
+		const int minIndicatorWidth = 24;
+		var ratio = (float)viewLength / contentLength;
+		var indicatorLength = Math.Max((int)(Width * ratio), minIndicatorWidth);
+		var indicatorPos = (int)((float)_scrollOffset / (contentLength - viewLength) * (Width - indicatorLength));
+		var indicatorRect = new Rectangle(indicatorPos, barRect.Top, indicatorLength, ScrollBarHeight);
+		_scrollBarIndicatorRect = indicatorRect;
 
-		var leftBtn = new Rectangle(0, barRect.Top, barHeight, barHeight);
-		var rightBtn = new Rectangle(Width - barHeight, barRect.Top, barHeight, barHeight);
+		// Draw rounded indicator (left 8, right 8)
+		using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+		{
+			const int radius = 8;
+			path.AddArc(indicatorRect.Left, indicatorRect.Top, radius, ScrollBarHeight, 90, 180);
+			path.AddArc(indicatorRect.Right - radius, indicatorRect.Top, radius, ScrollBarHeight, 270, 180);
+			path.CloseFigure();
+			g.FillPath(new SolidBrush(theme.BackSelection), path);
+		}
+
+		var leftBtn = new Rectangle(0, barRect.Top, ScrollBarHeight, ScrollBarHeight);
+		var rightBtn = new Rectangle(Width - ScrollBarHeight, barRect.Top, ScrollBarHeight, ScrollBarHeight);
 		g.FillRectangle(new SolidBrush(theme.BackSelection), leftBtn);
 		g.FillRectangle(new SolidBrush(theme.BackSelection), rightBtn);
 
@@ -412,10 +477,76 @@ public sealed class FileList : Control
 	}
 
 	/// <inheritdoc />
+	protected override void OnMouseMove(MouseEventArgs e)
+	{
+		base.OnMouseMove(e);
+		if (_scrollBarDragging)
+		{
+			var indicatorWidth = _scrollBarIndicatorRect.Width;
+			var barWidth = Width;
+			var indicatorX = e.Location.X - _scrollBarDragOffset;
+			indicatorX = Math.Max(0, Math.Min(barWidth - indicatorWidth, indicatorX));
+
+			int contentLength, viewLength;
+			if (_viewMode == FileListViewMode.ShortList)
+			{
+				var itemWidth = (Width - 4) / _shortColumns;
+				var totalCols = (Items.Count + _shortColumns - 1) / _shortColumns;
+				contentLength = totalCols * itemWidth;
+				viewLength = Width;
+			}
+			else
+			{
+				var itemHeight = Font.Height + 6;
+				contentLength = Items.Count * itemHeight;
+				viewLength = Height - ScrollBarHeight;
+			}
+
+			if (contentLength <= viewLength)
+				return;
+
+			var ratio = (float)indicatorX / (barWidth - indicatorWidth);
+			_scrollOffset = (int)((contentLength - viewLength) * ratio);
+			Invalidate();
+		}
+	}
+
+	/// <inheritdoc />
+	protected override void OnMouseUp(MouseEventArgs e)
+	{
+		base.OnMouseUp(e);
+		if (_scrollBarDragging)
+			_scrollBarDragging = false;
+	}
+
+	/// <inheritdoc />
 	protected override void OnMouseDown(MouseEventArgs e)
 	{
 		base.OnMouseDown(e);
 		Focus();
+
+		// 스크롤바 조작
+		if (_scrollBarIndicatorRect.Contains(e.Location) && e.Button is MouseButtons.Left or MouseButtons.Right)
+		{
+			_scrollBarDragging = true;
+			_scrollBarDragOffset = e.Location.X - _scrollBarIndicatorRect.Left;
+			return;
+		}
+
+		// 스크롤바　좌/우 버튼 클릭
+		if (e.Location.Y >= Height - ScrollBarHeight && e.Location.Y < Height)
+		{
+			if (e.Location.X < ScrollBarHeight)
+			{
+				ScrollBy(-1);
+				return;
+			}
+			if (e.Location.X > Width - ScrollBarHeight)
+			{
+				ScrollBy(1);
+				return;
+			}
+		}
 
 		var idx = HitTest(e.Location);
 		if (idx < 0)
@@ -455,8 +586,6 @@ public sealed class FileList : Control
 			case MouseButtons.None:
 				// 잉? 이게 들어온다고?
 			default:
-				// 오른쪽 및 가운데 버튼
-				_anchorIndex = idx;
 				break;
 		}
 
@@ -483,27 +612,7 @@ public sealed class FileList : Control
 	protected override void OnMouseWheel(MouseEventArgs e)
 	{
 		base.OnMouseWheel(e);
-
-		if (_viewMode == FileListViewMode.LongList)
-		{
-			var itemHeight = Font.Height + 6;
-			var maxOffset = Math.Max(0, Items.Count * itemHeight - Height);
-			_scrollOffset -= e.Delta / 120 * itemHeight;
-			if (_scrollOffset < 0) _scrollOffset = 0;
-			if (_scrollOffset > maxOffset) _scrollOffset = maxOffset;
-		}
-		else
-		{
-			var itemWidth = (Width - 4) / _shortColumns;
-			var totalCols = (Items.Count + _shortColumns - 1) / _shortColumns;
-			var totalWidth = totalCols * itemWidth;
-			var maxOffset = Math.Max(0, totalWidth - Width);
-			_scrollOffset -= e.Delta / 120 * itemWidth;
-			if (_scrollOffset < 0) _scrollOffset = 0;
-			if (_scrollOffset > maxOffset) _scrollOffset = maxOffset;
-		}
-
-		Invalidate();
+		ScrollBy(-Math.Sign(e.Delta), page: true);
 	}
 
 	/// <inheritdoc />
@@ -529,7 +638,6 @@ public sealed class FileList : Control
 
 		var shift = (e.Modifiers & Keys.Shift) == Keys.Shift;
 		var itemHeight = Font.Height + 6;
-		var visibleRows = Math.Max(1, Height / itemHeight);
 		var prevIndex = FocusedIndex;
 		var newIndex = prevIndex;
 
@@ -571,9 +679,7 @@ public sealed class FileList : Control
 			case Keys.End:
 				newIndex = Items.Count - 1;
 				if (_viewMode == FileListViewMode.LongList)
-				{
 					_scrollOffset = Math.Max(0, Items.Count * itemHeight - Height);
-				}
 				else // ShortList
 				{
 					var totalRows = (Items.Count + _shortColumns - 1) / _shortColumns;
@@ -581,73 +687,11 @@ public sealed class FileList : Control
 				}
 				break;
 			case Keys.PageUp:
-			{
-				if (_viewMode == FileListViewMode.LongList)
-				{
-					var firstVisibleIndex = _scrollOffset / itemHeight;
-					if (FocusedIndex > firstVisibleIndex)
-						newIndex = firstVisibleIndex;
-					else
-					{
-						_scrollOffset = Math.Max(0, _scrollOffset - visibleRows * itemHeight);
-						// itemHeight 배수로 보정
-						_scrollOffset = (_scrollOffset / itemHeight) * itemHeight;
-						newIndex = _scrollOffset / itemHeight;
-					}
-				}
-				else // ShortList
-				{
-					var firstVisibleRow = _scrollOffset / itemHeight;
-					var firstVisibleIndex = firstVisibleRow * _shortColumns + (FocusedIndex % _shortColumns);
-					if (FocusedIndex > firstVisibleIndex)
-						newIndex = firstVisibleIndex;
-					else
-					{
-						_scrollOffset = Math.Max(0, _scrollOffset - visibleRows * itemHeight);
-						// itemHeight 배수로 보정
-						_scrollOffset = (_scrollOffset / itemHeight) * itemHeight;
-						firstVisibleRow = _scrollOffset / itemHeight;
-						newIndex = firstVisibleRow * _shortColumns + (FocusedIndex % _shortColumns);
-						if (newIndex >= Items.Count)
-							newIndex = Items.Count - 1;
-					}
-				}
+				ScrollBy(-1, page: true, focusMove: true);
 				break;
-			}
 			case Keys.PageDown:
-			{
-				if (_viewMode == FileListViewMode.LongList)
-				{
-					var lastVisibleIndex = Math.Min(Items.Count - 1, (_scrollOffset + Height) / itemHeight - 1);
-					if (FocusedIndex >= lastVisibleIndex)
-					{
-						var maxOffset = Math.Max(0, Items.Count * itemHeight - Height);
-						_scrollOffset = Math.Min(maxOffset, _scrollOffset + visibleRows * itemHeight);
-						lastVisibleIndex = Math.Min(Items.Count - 1, (_scrollOffset + Height) / itemHeight - 1);
-					}
-					newIndex = lastVisibleIndex;
-				}
-				else // ShortList
-				{
-					var lastVisibleRow = Math.Min(((_scrollOffset + Height) / itemHeight) - 1, (Items.Count - 1) / _shortColumns);
-					var lastVisibleIndex = lastVisibleRow * _shortColumns + (FocusedIndex % _shortColumns);
-					if (lastVisibleIndex >= Items.Count)
-						lastVisibleIndex = Items.Count - 1;
-					if (FocusedIndex < lastVisibleIndex)
-						newIndex = lastVisibleIndex;
-					else
-					{
-						var totalRows = (Items.Count + _shortColumns - 1) / _shortColumns;
-						var maxOffset = Math.Max(0, totalRows * itemHeight - Height);
-						_scrollOffset = Math.Min(maxOffset, _scrollOffset + visibleRows * itemHeight);
-						lastVisibleRow = Math.Min(((_scrollOffset + Height) / itemHeight) - 1, (Items.Count - 1) / _shortColumns);
-						newIndex = lastVisibleRow * _shortColumns + (FocusedIndex % _shortColumns);
-						if (newIndex >= Items.Count)
-							newIndex = Items.Count - 1;
-					}
-				}
+				ScrollBy(1, page: true, focusMove: true);
 				break;
-			}
 			case Keys.Space:
 			case Keys.Insert:
 			{
@@ -685,7 +729,7 @@ public sealed class FileList : Control
 			}
 		}
 
-		// Arrow key scrollOffset 보정
+		// scrollOffset 보정
 		if (newIndex != prevIndex)
 		{
 			if (_viewMode == FileListViewMode.LongList)
@@ -725,7 +769,7 @@ public sealed class FileList : Control
 		}
 	}
 
-	// from~to 범위 선택
+	// 범위 선택
 	private void SelectRange(int from, int to)
 	{
 		if (from > to)
@@ -775,6 +819,7 @@ public sealed class FileList : Control
 		return -1;
 	}
 
+	// 인덱스에 해당하는 경계 사각형을 반환합니다.
 	private Rectangle? GetIndexedBound(int index)
 	{
 		if (index < 0 || index >= Items.Count)
@@ -796,6 +841,96 @@ public sealed class FileList : Control
 			var y = row * itemHeight;
 			return new Rectangle(x, y, itemWidth, itemHeight);
 		}
+	}
+
+	// 페이지 스크롤 및 포커스 이동 지원
+	private void ScrollBy(int direction, bool page = false, bool focusMove = false)
+	{
+		int contentLength, viewLength, step;
+		if (_viewMode == FileListViewMode.ShortList)
+		{
+			var itemWidth = (Width - 4) / _shortColumns;
+			var totalCols = (Items.Count + _shortColumns - 1) / _shortColumns;
+			contentLength = totalCols * itemWidth;
+			viewLength = Width;
+			step = page ? viewLength : itemWidth;
+		}
+		else
+		{
+			var itemHeight = Font.Height + 6;
+			contentLength = Items.Count * itemHeight;
+			viewLength = Height - ScrollBarHeight;
+			step = page ? viewLength : itemHeight;
+		}
+		if (contentLength <= viewLength)
+			return;
+
+		if (page && focusMove && Items.Count > 0)
+		{
+			if (_viewMode == FileListViewMode.LongList)
+			{
+				var itemHeight = Font.Height + 6;
+				if (direction < 0)
+				{
+					// PageUp: 맨 위 항목으로 포커스 이동, 이미 맨 위면 스크롤 후 새 영역 맨 위로 포커스
+					var topIndex = _scrollOffset / itemHeight;
+					if (FocusedIndex <= topIndex)
+					{
+						_scrollOffset = Math.Max(0, _scrollOffset - step);
+						// 스크롤 후 새로 보이는 영역의 맨 위로 포커스
+						topIndex = _scrollOffset / itemHeight;
+					}
+					FocusedIndex = topIndex;
+				}
+				else
+				{
+					// PageDown: 맨 아래 항목으로 포커스 이동, 이미 맨 아래면 스크롤 후 새 영역 맨 아래로 포커스
+					var bottomIndex = (_scrollOffset + viewLength) / itemHeight - 1;
+					if (FocusedIndex >= bottomIndex || bottomIndex >= Items.Count)
+					{
+						_scrollOffset = Math.Min(contentLength - viewLength, _scrollOffset + step);
+						bottomIndex = (_scrollOffset + viewLength) / itemHeight - 1;
+					}
+					FocusedIndex = Math.Min(bottomIndex, Items.Count - 1);
+				}
+			}
+			else // ShortList
+			{
+				var itemHeight = Font.Height + 6;
+				var col = FocusedIndex % _shortColumns;
+				if (direction < 0)
+				{
+					var topRow = _scrollOffset / itemHeight;
+					var curRow = FocusedIndex / _shortColumns;
+					if (curRow <= topRow)
+					{
+						_scrollOffset = Math.Max(0, _scrollOffset - step);
+						topRow = _scrollOffset / itemHeight;
+					}
+					FocusedIndex = Math.Max(0, (topRow) * _shortColumns + col);
+				}
+				else
+				{
+					var bottomRow = (_scrollOffset + viewLength) / itemHeight - 1;
+					var curRow = FocusedIndex / _shortColumns;
+					var maxRow = (Items.Count - 1) / _shortColumns;
+					if (curRow >= bottomRow || bottomRow > maxRow)
+					{
+						_scrollOffset = Math.Min(contentLength - viewLength, _scrollOffset + step);
+						bottomRow = (_scrollOffset + viewLength) / itemHeight - 1;
+					}
+					FocusedIndex = Math.Min((bottomRow) * _shortColumns + col, Items.Count - 1);
+				}
+			}
+			Invalidate();
+			return;
+		}
+
+		// 일반 스크롤
+		_scrollOffset += direction * step;
+		if (_scrollOffset < 0) _scrollOffset = 0;
+		if (_scrollOffset > contentLength - viewLength) _scrollOffset = contentLength - viewLength;
+		Invalidate();
 	}
 }
 
