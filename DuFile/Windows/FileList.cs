@@ -1,67 +1,65 @@
 ﻿namespace DuFile.Windows;
 
 /// <summary>
-/// 파일/디렉터리/드라이브 항목을 표시하고 관리하는 커스텀 리스트 컨트롤입니다.
+/// 파일, 디렉터리, 드라이브 항목을 표시하고 관리하는 커스텀 리스트 컨트롤입니다.
 /// </summary>
 public sealed class FileList : ThemeControl
 {
-	// 스크롤바 크기
+	// 스크롤바 크기 (픽셀)
 	private const int SbSize = 12;
-	// 스크롤바 지시자 최소 너비
+	// 스크롤바 지시자 최소 너비 (픽셀)
 	private const int SbMinIndWidth = 24;
 
-	// 컬럼 너비 정보
-	private readonly FileListWidths _widths;
+	// 컬럼 너비 정보 객체
+	private readonly FileListWidths _widths = new();
 
-	// 업데이트 중 여부
+	// 항목 추가/삭제 등 대량 작업 중 여부
 	private bool _updating;
-	// 재계산 필요 여부
+	// 레이아웃 재계산 필요 여부
 	private bool _needRefresh;
 
-	// 포커스된 인덱스
+	// 현재 포커스된 항목 인덱스
 	private int _focusedIndex = -1;
-	// 시프트키로 다중 선택 기준 인덱스
+	// Shift로 다중 선택 시 기준 인덱스
 	private int _anchorIndex = -1;
 
-	// 열 갯수
+	// 열(컬럼) 개수
 	private int _columns = 2;
-	// 줄 갯수
+	// 전체 줄(행) 개수
 	private int _rows;
 
-	// 보이는 줄 수 (한 열에)
+	// 한 열에 보이는 줄 수
 	private int _viewRows;
 	// 아이템 1개의 너비
 	private int _itemWidth;
 	// 아이템 1개의 높이
 	private int _itemHeight;
-	
-	// 내용 높이
+	// 전체 내용 높이
 	private int _contentHeight;
-	// 보이는 높이
+	// 실제 보이는 높이
 	private int _viewHeight;
-	
-	// 페이지 갯수
+	// 전체 페이지 개수
 	private int _pageCount;
-	// 페이지 당 항목 수
+	// 한 페이지에 표시할 항목 수
 	private int _pageSize;
 	// 현재 페이지 번호
 	private int _currentPage;
-	// 현재 페이지의 첫번째 내용 순번
+	// 현재 페이지의 첫 번째 항목 인덱스
 	private int _firstIndex;
-	// 현재 페이지의 마지막 내용 순번
+	// 현재 페이지의 마지막 항목 인덱스
 	private int _lastIndex;
 
-	// 스크롤바 끌기
+	// 스크롤바 드래그 중 여부
 	private bool _sbDragging;
-	// 스크롤바 오프셋
+	// 스크롤바 드래그 오프셋
 	private int _sbOffset;
-	// 스크롤바 지시자 너비
+	// 스크롤바 지시자(인디케이터) 너비
 	private int _sbIndWidth;
-	// 스크롤바 영역
+	// 스크롤바 전체 영역
 	private Rectangle _sbBound = Rectangle.Empty;
-	// 스크롤바 트랙 범위
+	// 스크롤바 트랙(이동 가능한 영역) 범위
 	private MinMax _sbTrackRange = MinMax.Empty;
-	// 스크롤바 지시자 범위
+	// 스크롤바 지시자(인디케이터) 범위
 	private MinMax _sbIndRange = MinMax.Empty;
 
 	/// <summary>리스트에 표시되는 항목 컬렉션입니다.</summary>
@@ -125,18 +123,17 @@ public sealed class FileList : ThemeControl
 	[Category("FileList")]
 	public event EventHandler<FileListClickEventArgs>? ItemClicked;
 
-	/// <summary>FileList 컨트롤을 초기화합니다.</summary>
+	/// <summary>
+	/// FileList 컨트롤을 초기화합니다.
+	/// </summary>
 	public FileList()
 	{
 		SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
 				 ControlStyles.ResizeRedraw | ControlStyles.UserPaint | ControlStyles.Selectable, true);
 		TabStop = true;
-
-		_widths = new FileListWidths();
-		RefreshLayout(true);
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override void OnUpdateTheme(Theme theme)
 	{
 		Font = new Font(theme.ContentFontFamily, theme.ContentFontSize, FontStyle.Regular, GraphicsUnit.Point);
@@ -144,10 +141,10 @@ public sealed class FileList : ThemeControl
 		ForeColor = theme.Foreground;
 
 		_widths.UpdateFixed(Font);
-		_needRefresh = true;
+		RefreshLayout();
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override void OnResize(EventArgs e)
 	{
 		base.OnResize(e);
@@ -156,7 +153,7 @@ public sealed class FileList : ThemeControl
 		_needRefresh = true;
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override void OnPaint(PaintEventArgs e)
 	{
 		if (_updating)
@@ -168,16 +165,15 @@ public sealed class FileList : ThemeControl
 		var theme = Settings.Instance.Theme;
 		g.Clear(theme.BackContent);
 
-		if (!_needRefresh)
-			RefreshLayout(false);
-		else
+		if (_needRefresh)
 		{
 			_needRefresh = false;
 			_widths.UpdateName(Items, Font);
-			_widths.AdjustName(Width);
-			RefreshLayout(true);
+			_widths.AdjustName(_itemWidth, _columns);
+			RefreshLayout();
 		}
 
+		PrepareIndex();
 		var first = _firstIndex;
 		var count = _lastIndex - first + 1;
 		for (var i = 0; i < count; i++)
@@ -191,6 +187,7 @@ public sealed class FileList : ThemeControl
 			DrawScrollBar(g, theme);
 	}
 
+	// 스크롤바를 그립니다.
 	private void DrawScrollBar(Graphics g, Theme theme)
 	{
 		if (!_sbDragging)
@@ -207,44 +204,41 @@ public sealed class FileList : ThemeControl
 		var rect = _sbBound;
 		g.FillRectangle(brushContent, rect);
 
-		// 지사자
+		// 스크롤바 지시자(인디케이터) 그리기
 		g.FillRectangle(_sbDragging ? brushActive : brushSelection,
-			_sbIndRange.Left, rect.Top + 1,
-			_sbIndWidth, rect.Height - 1);
+			_sbIndRange.Left, rect.Top + 1, _sbIndWidth, rect.Height - 1);
 
-		// 좌/우 화살표
-		var scSize = SbSize;
+		// 좌/우 화살표 그리기
 		Point[] leftPts =
 		[
 			new(10, rect.Top + 2),
-			new(scSize - 8, rect.Top + rect.Height / 2),
+			new(SbSize - 8, rect.Top + rect.Height / 2),
 			new(10, rect.Bottom - 2)
 		];
 		Point[] rightPts =
 		[
 			new(Width - 10, rect.Top + 2),
-			new(Width - scSize + 8, rect.Top + rect.Height / 2),
+			new(Width - SbSize + 8, rect.Top + rect.Height / 2),
 			new(Width - 10, rect.Bottom - 2)
 		];
 		g.FillPolygon(brushForground, leftPts);
 		g.FillPolygon(brushForground, rightPts);
 
-		// 분리선
+		// 스크롤바 상단 분리선
 		using var pen = new Pen(theme.Border);
 		g.DrawLine(pen, 0, rect.Top, Width, rect.Top);
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override void OnMouseMove(MouseEventArgs e)
 	{
 		base.OnMouseMove(e);
 		if (_sbDragging)
 		{
-			var indWidth = _sbIndWidth;
 			var trackWidth = _sbTrackRange.Length;
 			var x = e.X - _sbTrackRange.Left - _sbOffset;
-			var rx = Math.Max(0, Math.Min(trackWidth - indWidth, x));
-			var page = (int)Math.Round((float)rx / (trackWidth - indWidth) * (Math.Max(1, _pageCount) - 1));
+			var rx = Math.Max(0, Math.Min(trackWidth - _sbIndWidth, x));
+			var page = (int)Math.Round((float)rx / (trackWidth - _sbIndWidth) * (Math.Max(1, _pageCount) - 1));
 			SetPage(page);
 
 			// 드래그 중일 때는 지시자의 위치를 업데이트하고 다시 그립니다.
@@ -259,7 +253,7 @@ public sealed class FileList : ThemeControl
 		}
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override void OnMouseDown(MouseEventArgs e)
 	{
 		base.OnMouseDown(e);
@@ -320,7 +314,7 @@ public sealed class FileList : ThemeControl
 		ItemClicked?.Invoke(this, new FileListClickEventArgs(index, e.Button, e.Location));
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override void OnMouseUp(MouseEventArgs e)
 	{
 		base.OnMouseUp(e);
@@ -332,7 +326,7 @@ public sealed class FileList : ThemeControl
 		}
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override void OnMouseDoubleClick(MouseEventArgs e)
 	{
 		base.OnMouseDoubleClick(e);
@@ -341,11 +335,15 @@ public sealed class FileList : ThemeControl
 			_sbBound.Contains(e.Location))
 			return;
 
-		if (FocusedIndex >= 0 && FocusedIndex < Items.Count)
-			ItemActivate?.Invoke(this, EventArgs.Empty);
+		var index = FindIndexAt(e.X, e.Y);
+		if (index < 0 || index >= Items.Count)
+			return;
+		
+		FocusedIndex = index;
+		ItemActivate?.Invoke(this, EventArgs.Empty);
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override void OnMouseWheel(MouseEventArgs e)
 	{
 		base.OnMouseWheel(e);
@@ -353,7 +351,7 @@ public sealed class FileList : ThemeControl
 		Invalidate();
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override bool IsInputKey(Keys keyData)
 	{
 		return keyData switch
@@ -363,7 +361,7 @@ public sealed class FileList : ThemeControl
 		};
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override void OnKeyDown(KeyEventArgs e)
 	{
 		base.OnKeyDown(e);
@@ -398,14 +396,10 @@ public sealed class FileList : ThemeControl
 				newIndex = int.MaxValue;
 				break;
 			case Keys.PageUp:
-				newIndex = curIndex == _firstIndex ?
-					_firstIndex - _pageSize :
-					_firstIndex;
+				newIndex = curIndex == _firstIndex ? _firstIndex - _pageSize : _firstIndex;
 				break;
 			case Keys.PageDown:
-				newIndex = curIndex == _lastIndex ?
-					_lastIndex + _pageSize :
-					_lastIndex;
+				newIndex = curIndex == _lastIndex ? _lastIndex + _pageSize : _lastIndex;
 				break;
 			case Keys.Space:
 			case Keys.Insert:
@@ -504,25 +498,25 @@ public sealed class FileList : ThemeControl
 	/// 파일 항목을 추가합니다.
 	/// </summary>
 	public void AddFile(FileInfo fileInfo) =>
-		AddItem(new FileListFileItem(this, fileInfo));
+		AddItem(new FileListFileItem(fileInfo));
 
 	/// <summary>
 	/// 폴더 항목을 추가합니다.
 	/// </summary>
 	public void AddFolder(DirectoryInfo dirInfo) =>
-		AddItem(new FileListFolderItem(this, dirInfo));
+		AddItem(new FileListFolderItem(dirInfo));
 
 	/// <summary>
 	/// 상위 폴더 항목을 추가합니다.
 	/// </summary>
 	public void AddParentFolder(DirectoryInfo dirInfo) =>
-		AddItem(new FileListFolderItem(this, dirInfo, "..", true));
+		AddItem(new FileListFolderItem(dirInfo, "..", true));
 
 	/// <summary>
 	/// 드라이브 항목을 추가합니다.
 	/// </summary>
 	public void AddDrive(DriveInfo driveInfo) =>
-		AddItem(new FileListDriveItem(this, driveInfo));
+		AddItem(new FileListDriveItem(driveInfo));
 
 	// 항목을 리스트에 추가합니다.
 	private void AddItem(FileListItem item)
@@ -536,10 +530,10 @@ public sealed class FileList : ThemeControl
 	}
 
 	/// <summary>
-	/// Retrieves the <see cref="FileListItem"/> at the specified index.
+	/// 지정한 인덱스의 <see cref="FileListItem"/>을 반환합니다.
 	/// </summary>
-	/// <param name="index">The zero-based index of the item to retrieve. Must be within the range of the collection.</param>
-	/// <returns>The <see cref="FileListItem"/> at the specified index, or <see langword="null"/> if the index is out of range.</returns>
+	/// <param name="index">가져올 항목의 0부터 시작하는 인덱스입니다.</param>
+	/// <returns>해당 인덱스의 <see cref="FileListItem"/> 또는 범위를 벗어나면 <see langword="null"/>을 반환합니다.</returns>
 	public FileListItem? GetItem(int index)
 	{
 		if (index < 0 || index >= Items.Count)
@@ -548,12 +542,11 @@ public sealed class FileList : ThemeControl
 	}
 
 	/// <summary>
-	/// Finds the index of the item at the specified coordinates.
+	/// 지정한 좌표에 위치한 항목의 인덱스를 찾습니다.
 	/// </summary>
-	/// <param name="x">The x-coordinate to check.</param>
-	/// <param name="y">The y-coordinate to check.</param>
-	/// <returns>The zero-based index of the item located at the specified coordinates;  returns -1 if no item is found at the given
-	/// position.</returns>
+	/// <param name="x">확인할 x 좌표입니다.</param>
+	/// <param name="y">확인할 y 좌표입니다.</param>
+	/// <returns>해당 좌표에 위치한 항목의 인덱스, 없으면 -1을 반환합니다.</returns>
 	public int FindIndexAt(int x, int y)
 	{
 		var first = _firstIndex;
@@ -568,14 +561,14 @@ public sealed class FileList : ThemeControl
 	}
 
 	/// <summary>
-	/// Retrieves the index of the first item with the specified name.
+	/// 지정한 이름을 가진 첫 번째 항목의 인덱스를 반환합니다.
 	/// </summary>
-	/// <param name="name">The full name of the item to locate. Cannot be null.</param>
-	/// <returns>The zero-based index of the first item with the specified name, or -1 if no such item is found.</returns>
+	/// <param name="name">찾을 항목의 전체 이름입니다.</param>
+	/// <returns>해당 이름을 가진 첫 번째 항목의 인덱스, 없으면 -1을 반환합니다.</returns>
 	public int FindIndexByName(string name) =>
 		Items.FindIndex(item => item.FullName == name);
 
-
+	// 인덱스에 해당하는 페이지로 스크롤을 맞춥니다.
 	private void EnsureIndex(int index)
 	{
 		if (index < 0 || index >= Items.Count)
@@ -586,11 +579,9 @@ public sealed class FileList : ThemeControl
 	}
 
 	/// <summary>
-	/// Sets the focus to the specified item in the list and adjusts the scroll position if necessary.
+	/// 지정한 인덱스의 항목에 포커스를 맞추고 필요시 스크롤을 조정합니다.
 	/// </summary>
-	/// <remarks>If the specified <paramref name="index"/> is out of range, the method does nothing.  When the item
-	/// is focused, the view is scrolled to ensure the item is visible within the current viewport.</remarks>
-	/// <param name="index">The zero-based index of the item to focus. Must be within the range of available items.</param>
+	/// <param name="index">포커스할 항목의 인덱스입니다.</param>
 	public void EnsureFocus(int index)
 	{
 		if (index < 0 || index >= Items.Count)
@@ -600,11 +591,9 @@ public sealed class FileList : ThemeControl
 	}
 
 	/// <summary>
-	/// Ensures that the item with the specified name is focused, if it exists.
+	/// 지정한 이름의 항목에 포커스를 맞춥니다.
 	/// </summary>
-	/// <remarks>If the item with the specified name is not found, or if the collection of items is empty, the
-	/// method does nothing.</remarks>
-	/// <param name="name">The name of the item to focus. Can be <see langword="null"/> or empty, in which case no action is taken.</param>
+	/// <param name="name">포커스할 항목의 이름입니다.</param>
 	public void EnsureFocusByName(string? name)
 	{
 		if (string.IsNullOrEmpty(name) || Items.Count == 0)
@@ -657,7 +646,7 @@ public sealed class FileList : ThemeControl
 		return files;
 	}
 
-	// 아이템 선택
+	// 단일 항목 선택/해제
 	private void SelectIndex(int index)
 	{
 		var item = Items[index];
@@ -686,79 +675,89 @@ public sealed class FileList : ThemeControl
 		Invalidate();
 	}
 
-	// 스크롤바가 보이는지 여부를 확인합니다.
+	// 스크롤바가 보이는지 여부
 	private bool IsScrollBarVisible => _contentHeight > _viewHeight;
 
+	// 컬럼 수 설정
 	private void SetColumns(int column)
 	{
 		_columns = Math.Clamp(column, 1, 4);
-		RefreshLayout(true);
+		RefreshLayout();
 	}
 
+	// 페이지 번호 설정
 	private void SetPage(int page)
 	{
 		if (page >= 0 && page < _pageCount)
 			_currentPage = page;
 	}
 
+	// 페이지 이동
 	private void SetPageDelta(int delta)
 	{
 		var newPage = Math.Clamp(_currentPage + delta, 0, _pageCount - 1);
 		_currentPage = newPage;
 	}
 
-	private void RefreshLayout(bool refreshAll)
+	// 인덱스 준비하기
+	private void PrepareIndex()
 	{
-		if (refreshAll)
-		{
-			var size = Size;
-			var fontHeight = Font.Height;
-			var count = Items.Count;
-
-			_rows = (count + _columns - 1) / _columns;
-			_viewHeight = size.Height - SbSize;
-
-			_itemHeight = fontHeight + 6;
-			_itemWidth = (size.Width - 4) / _columns;
-
-			_viewRows = Math.Max(1, _viewHeight / _itemHeight);
-			_contentHeight = _rows * _itemHeight;
-
-			_pageSize = _viewRows * _columns;
-			_pageCount = (count + _pageSize - 1) / _pageSize;
-
-			if (!IsScrollBarVisible)
-				_sbBound = Rectangle.Empty;
-			else
-			{
-				_sbBound = new Rectangle(0, size.Height - SbSize, size.Width, SbSize);
-				_sbTrackRange = new MinMax(SbSize, size.Width - SbSize);
-				_sbIndWidth = Math.Max(SbMinIndWidth, _sbTrackRange.Length / Math.Max(1, _pageCount));
-			}
-		}
-
 		_firstIndex = _currentPage * _pageSize;
 		_lastIndex = Math.Min(_firstIndex + _pageSize - 1, Items.Count - 1);
 	}
 
-	private (int row, int col) GetRowCol(int index) => 
+	// 레이아웃 및 페이지 정보 갱신
+	private void RefreshLayout()
+	{
+		var size = Size;
+		var fontHeight = Font.Height;
+		var count = Items.Count;
+
+		_rows = (count + _columns - 1) / _columns;
+		_viewHeight = size.Height - SbSize;
+
+		_itemHeight = fontHeight + 6;
+		_itemWidth = (size.Width - 4) / _columns;
+
+		_viewRows = Math.Max(1, _viewHeight / _itemHeight);
+		_contentHeight = _rows * _itemHeight;
+
+		_pageSize = _viewRows * _columns;
+		_pageCount = (count + _pageSize - 1) / _pageSize;
+
+		if (!IsScrollBarVisible)
+			_sbBound = Rectangle.Empty;
+		else
+		{
+			_sbBound = new Rectangle(0, size.Height - SbSize, size.Width, SbSize);
+			_sbTrackRange = new MinMax(SbSize, size.Width - SbSize);
+			_sbIndWidth = Math.Max(SbMinIndWidth, _sbTrackRange.Length / Math.Max(1, _pageCount));
+		}
+	}
+
+	// 인덱스으로부터 (row, col) 계산
+	private (int row, int col) GetRowCol(int index) =>
 		(index % _viewRows, index / _viewRows);
 
-	private int GetPageNo(int index) => 
+	// 인덱스에 해당하는 페이지 번호 반환
+	private int GetPageNo(int index) =>
 		index / _pageSize;
 
+	// 페이지 내 인덱스에 해당하는 사각형 반환
 	private Rectangle GetItemRect(int indexOfPage)
 	{
 		var (row, col) = GetRowCol(indexOfPage);
 		return new Rectangle(col * _itemWidth, row * _itemHeight, _itemWidth, _itemHeight);
 	}
 
+	// 전체 인덱스에 해당하는 사각형 반환
 	private Rectangle GetIndexedItemRect(int index)
 	{
 		var (row, col) = GetRowCol(index - GetPageNo(index) * _pageSize);
 		return new Rectangle(col * _itemWidth, row * _itemHeight, _itemWidth, _itemHeight);
 	}
 
+	// 스크롤바 인디케이터 위치 계산
 	private void CalcScrollBarIndicator()
 	{
 		if (!IsScrollBarVisible)
@@ -778,7 +777,7 @@ public sealed class FileList : ThemeControl
 }
 
 /// <summary>
-/// 파일 리스트의 항목 너비와 기타 정보를 저장하는 구조체입니다.
+/// 파일 리스트의 항목 너비와 기타 정보를 저장하는 클래스입니다.
 /// </summary>
 internal class FileListWidths
 {
@@ -788,7 +787,6 @@ internal class FileListWidths
 	public int Extension { get; set; }
 	/// <summary>확장자 최소 너비</summary>
 	public int MinExtension { get; set; }
-
 	/// <summary>크기 컬럼 너비</summary>
 	public int Size { get; set; }
 	/// <summary>날짜 컬럼 너비</summary>
@@ -797,11 +795,9 @@ internal class FileListWidths
 	public int Time { get; set; }
 	/// <summary>속성 컬럼 너비</summary>
 	public int Attr { get; set; }
-
-	/// <summary>모든 고정 컬럼 너비</summary>
-	public int Fixed { get; set; }
-
-	/// <summary>전체 컬럼 그릴지 여부</summary>
+	/// <summary>보이는 컬럼 너비</summary>
+	public int Visible { get; set; }
+	/// <summary>전체 고정 컬럼 표시 여부</summary>
 	public bool IsFixedVisible { get; set; }
 
 	/// <summary>
@@ -809,15 +805,11 @@ internal class FileListWidths
 	/// </summary>
 	public void UpdateFixed(Font font)
 	{
-		var dirWidth = TextRenderer.MeasureText("[폴더]", font).Width;
-		var sizeWidth = TextRenderer.MeasureText("999.99 WB", font).Width;
 		MinExtension = TextRenderer.MeasureText("WWW", font).Width + 4;
-
-		Size = Math.Max(dirWidth, sizeWidth) + 8;
+		Size = TextRenderer.MeasureText("999.99 WB", font).Width + 8;
 		Date = TextRenderer.MeasureText("9999-99-99", font).Width + 4;
 		Time = TextRenderer.MeasureText("99:99", font).Width + 4;
 		Attr = TextRenderer.MeasureText("WWWW", font).Width + 4;
-		Fixed = Size + Date + Time + Attr;
 	}
 
 	/// <summary>
@@ -848,33 +840,57 @@ internal class FileListWidths
 	/// <summary>
 	/// 컨트롤 너비에 맞게 이름/확장자 너비를 조정합니다.
 	/// </summary>
-	public bool AdjustName(int controlWidth)
+	public bool AdjustName(int width, int columns)
 	{
-		IsFixedVisible = Fixed <= controlWidth * 0.6;
+		var fixedSize = Date + Time + Attr;
+		width -= FileListItem.LeadingWidth; // 선두 너비 제외해야 한다!
+		IsFixedVisible = columns == 1 && fixedSize <= width * 0.4;
 
-		// TODO: 아래 로직 말고 이름과 확장자와 크기만 표시할 때 크기 설정할 것
-		var remainWidth = controlWidth - Fixed;
-		if (remainWidth <= 0)
+		var remainWidth = IsFixedVisible ? width - fixedSize : width;
+		if (Name + Extension + Size == remainWidth)
 		{
-			Name = 0;
-			Extension = 0;
-			return false;
+			// 이게 될리가 있나. 하지만 일단 넣어보자.
+			var min = Math.Min(Extension, MinExtension);
+			Name = remainWidth - min - Size;
+			Extension = min;
 		}
-
-		var total = Name + Extension;
-
-		if (Name + Extension == remainWidth)
-			Extension = remainWidth - Name;
 		else if (Name < Extension)
 		{
-			Name = remainWidth / 2;
-			Extension = remainWidth - Name;
+			remainWidth -= Size;
+			if (Name == 0)
+			{
+				// 가끔 있다. 파일 이름이 없거나 비어있는 경우.
+				Extension = remainWidth;
+			}
+			else if (Extension < MinExtension)
+			{
+				Name = remainWidth - MinExtension;
+				Extension = MinExtension;
+			}
+			else
+			{
+				Name = (int)(remainWidth * 0.4f);
+				Extension = remainWidth - Name;
+			}
 		}
 		else
 		{
-			if (total > 0)
+			remainWidth -= Size;
+			if (Extension == 0)
 			{
-				Name = remainWidth * Name / total;
+				// 가끔 있다. 확장자가 없는 경우.
+				Name = remainWidth;
+				Extension = 0;
+			}
+			else if (Extension < MinExtension)
+			{
+				Name = remainWidth - MinExtension;
+				Extension = MinExtension;
+			}
+			else
+			{
+				var total = Name + Extension;
+				Name = (int)(remainWidth * (float)Name / total);
 				Extension = remainWidth - Name;
 				if (Extension < MinExtension)
 				{
@@ -882,13 +898,9 @@ internal class FileListWidths
 					Extension = MinExtension;
 				}
 			}
-			else
-			{
-				Name = remainWidth;
-				Extension = 0;
-			}
 		}
 
+		Visible = Name + Extension + Size;
 		return !((Name + Extension) > remainWidth * 1.5);
 	}
 }
@@ -896,13 +908,16 @@ internal class FileListWidths
 /// <summary>
 /// 파일 리스트의 항목을 나타내는 추상 클래스입니다.
 /// </summary>
-public abstract class FileListItem(FileList fileList)
+public abstract class FileListItem
 {
-	/// <summary> 선택 마크 너비</summary>
-	protected const int MarkWidth = 8;
-
-	/// <summary> 소속 리스트</summary>
-	protected readonly FileList _list = fileList;
+	/// <summary>선택 마크(화살표) 너비</summary>
+	public const int MarkWidth = 8;
+	/// <summary>아이콘 너비</summary>
+	public const int IconWidth = 16;
+	/// <summary>아이콘 마진</summary>
+	public const int IconMargin = 4;
+	/// <summary>리스트 항목의 선두 너비</summary>
+	public const int LeadingWidth = MarkWidth + IconWidth + IconMargin;
 
 	/// <summary>선택 여부</summary>
 	public bool Selected { get; set; }
@@ -1008,10 +1023,8 @@ public class FileListFileItem : FileListItem
 	/// <summary>
 	/// 파일 항목을 생성합니다. 파일명, 확장자, 아이콘, 색상 등 정보를 제공합니다.
 	/// </summary>
-	/// <param name="fileList">이 파일 항목이 속한 파일 리스트입니다.</param>
 	/// <param name="fileInfo">이 파일 항목을 초기화하는 파일 정보입니다.</param>
-	public FileListFileItem(FileList fileList, FileInfo fileInfo) :
-		base(fileList)
+	public FileListFileItem(FileInfo fileInfo)
 	{
 		Info = fileInfo;
 
@@ -1024,20 +1037,20 @@ public class FileListFileItem : FileListItem
 		Color = Settings.Instance.Theme.GetColorExtension(Extension.ToUpperInvariant());
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	internal override string FullName => Info.FullName;
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	internal override string DisplayName => FileName;
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	internal override string DisplayExtension => Extension;
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	internal override void Draw(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Theme theme, bool focused)
 	{
 		base.Draw(g, font, bounds, widths, theme, focused);
 
 		var (fileColor, otherColor) = focused ? (theme.BackContent, theme.BackContent) : (Color, theme.Foreground);
-		var x = bounds.Left + 28;
+		var x = bounds.Left + LeadingWidth;
 		DrawItemText(g, FileName, font, new Rectangle(x, bounds.Top, widths.Name, bounds.Height), fileColor);
 		x += widths.Name;
 		DrawItemText(g, Extension, font, new Rectangle(x, bounds.Top, widths.Extension, bounds.Height), fileColor);
@@ -1069,16 +1082,14 @@ public class FileListFolderItem : FileListItem
 	public DateTime Creation => Info.CreationTime;
 	/// <summary>디렉터리 속성</summary>
 	public FileAttributes Attributes => Info.Attributes;
-	/// <summary>부모 폴더 인가요?</summary>
+	/// <summary>부모 폴더 여부</summary>
 	public bool IsParent { get; }
 
 	/// <summary>
 	/// 폴더 항목을 생성합니다. 폴더 정보와 관련 속성에 접근할 수 있습니다.
 	/// </summary>
-	/// <param name="fileList">이 디렉터리 항목이 속한 파일 리스트입니다.</param>
 	/// <param name="dirInfo">디렉터리 정보를 담고 있는 <see cref="DirectoryInfo"/> 객체입니다.</param>
-	public FileListFolderItem(FileList fileList, DirectoryInfo dirInfo) :
-		base(fileList)
+	public FileListFolderItem(DirectoryInfo dirInfo)
 	{
 		Info = dirInfo;
 
@@ -1092,12 +1103,10 @@ public class FileListFolderItem : FileListItem
 	/// <summary>
 	/// 디렉터리 항목을 생성합니다. 디렉터리 아이콘과 색상은 테마 설정에 따라 지정됩니다.
 	/// </summary>
-	/// <param name="fileList">이 디렉터리 항목이 속한 파일 리스트입니다.</param>
 	/// <param name="dirInfo">이 항목에 연결된 디렉터리 정보입니다.</param>
 	/// <param name="dirName">디렉터리 이름입니다.</param>
-	/// <param name="isParent">부모 폴더 인가요?</param>
-	public FileListFolderItem(FileList fileList, DirectoryInfo dirInfo, string dirName, bool isParent) :
-		base(fileList)
+	/// <param name="isParent">부모 폴더 여부입니다.</param>
+	public FileListFolderItem(DirectoryInfo dirInfo, string dirName, bool isParent)
 	{
 		Info = dirInfo;
 
@@ -1108,24 +1117,23 @@ public class FileListFolderItem : FileListItem
 		Color = Settings.Instance.Theme.Folder;
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	internal override string FullName => Info.FullName;
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	internal override string DisplayName => DirName;
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	internal override string DisplayExtension => string.Empty;
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	internal override void Draw(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Theme theme, bool focused)
 	{
 		base.Draw(g, font, bounds, widths, theme, focused);
 
 		var (dirColor, otherColor) = focused ? (theme.BackContent, theme.BackContent) : (Color, theme.Foreground);
-		var x = bounds.Left + 28;
-		DrawItemText(g, DirName, font, new Rectangle(x, bounds.Top, widths.Name, bounds.Height), dirColor);
-		x += widths.Name;
-		DrawItemText(g, string.Empty, font, new Rectangle(x, bounds.Top, widths.Extension, bounds.Height), dirColor);
-		x += widths.Extension;
+		var x = bounds.Left + LeadingWidth;
+		var neWidth = widths.Name + widths.Extension;
+		DrawItemText(g, DirName, font, new Rectangle(x, bounds.Top, neWidth, bounds.Height), dirColor);
+		x += neWidth;
 		DrawItemText(g, "[폴더]", font, new Rectangle(x, bounds.Top, widths.Size, bounds.Height), dirColor, true);
 		x += widths.Size;
 
@@ -1160,10 +1168,8 @@ public class FileListDriveItem : FileListItem
 	/// 드라이브 항목을 생성합니다. 드라이브명, 볼륨 라벨, 아이콘, 색상 등을 설정합니다.
 	/// </summary>
 	/// <remarks>드라이브명과 볼륨 라벨을 추출 및 포맷하고, 아이콘과 테마 색상을 적용합니다.</remarks>
-	/// <param name="fileList">이 드라이브 항목이 속한 파일 리스트입니다.</param>
 	/// <param name="driveInfo">드라이브 정보를 초기화에 사용합니다.</param>
-	public FileListDriveItem(FileList fileList, DriveInfo driveInfo) :
-		base(fileList)
+	public FileListDriveItem(DriveInfo driveInfo)
 	{
 		Info = driveInfo;
 
@@ -1174,23 +1180,23 @@ public class FileListDriveItem : FileListItem
 		Color = Settings.Instance.Theme.Drive;
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	internal override string FullName => Info.Name;
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	internal override string DisplayName => VolumeLabel;
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	internal override string DisplayExtension => string.Empty;
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	internal override void Draw(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Theme theme, bool focused)
 	{
 		base.Draw(g, font, bounds, widths, theme, focused);
 
 		var driveColor = focused ? theme.BackContent : Color;
-		var x = bounds.Left + 28;
-		var w = widths.Name + widths.Extension;
-		DrawItemText(g, VolumeLabel, font, new Rectangle(x, bounds.Top, w, bounds.Height), driveColor);
-		// 그래프 그려야함
+		var x = bounds.Left + LeadingWidth;
+		var neWidth = widths.Name + widths.Extension;
+		DrawItemText(g, VolumeLabel, font, new Rectangle(x, bounds.Top, neWidth, bounds.Height), driveColor);
+		// TODO: 드라이브 용량 그래프 등 추가 가능
 	}
 }
 
@@ -1201,10 +1207,8 @@ public class FileListClickEventArgs(int index, MouseButtons button, Point locati
 {
 	/// <summary>클릭한 항목 순번입니다.</summary>
 	public int Index { get; } = index;
-
 	/// <summary>클릭된 마우스 버튼입니다.</summary>
 	public MouseButtons Button { get; } = button;
-
 	/// <summary>클릭 위치(컨트롤 기준 좌표)입니다.</summary>
 	public Point Location { get; } = location;
 }
