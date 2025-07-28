@@ -1,14 +1,16 @@
-﻿namespace DuFile.Windows;
+﻿using System;
+
+namespace DuFile.Windows;
 
 /// <summary>
 /// 파일/디렉터리/드라이브 항목을 표시하고 관리하는 커스텀 리스트 컨트롤입니다.
 /// </summary>
 public sealed class FileList : ThemeControl
 {
-	// 리스트의 컬럼 수
-	private int _columns = 1;
+	// 파일 리스트 속성
+	private readonly FileListProps _props;
 	// 컬럼 너비 정보
-	private FileListWidths _widths;
+	private readonly FileListWidths _widths;
 
 	// 업데이트 중 여부
 	private bool _updating;
@@ -17,14 +19,6 @@ public sealed class FileList : ThemeControl
 	private int _focusedIndex = -1;
 	// 시프트키로 다중 선택 기준 인덱스
 	private int _anchorIndex = -1;
-	// 스크롤 오프셋
-	private int _scrollOffset;
-	// 스크롤바 눌림
-	private bool _sbarDragging;
-	// 스크롤바 드래그 오프셋
-	private int _sbarDragOffset;
-	// 스크롤바 지시자 사각형
-	private Rectangle _sbarIndicatorBound = Rectangle.Empty;
 
 	/// <summary>리스트에 표시되는 항목 컬렉션입니다.</summary>
 	[Browsable(false)]
@@ -41,10 +35,10 @@ public sealed class FileList : ThemeControl
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 	public int ColumnCount
 	{
-		get => _columns;
+		get => _props.Columns;
 		set
 		{
-			_columns = Math.Clamp(value, 1, 4);
+			_props.SetColumns(value);
 			Invalidate();
 		}
 	}
@@ -52,7 +46,7 @@ public sealed class FileList : ThemeControl
 	/// <summary>스크롤 바 높이입니다.</summary>
 	[Browsable(false)]
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-	public int ScrollBarHeight => 12;
+	public int ScrollBarSize => _props.ScrollBarSize;
 
 	/// <summary>현재 포커스된 항목의 인덱스입니다.</summary>
 	[Browsable(false)]
@@ -65,27 +59,26 @@ public sealed class FileList : ThemeControl
 			if (_focusedIndex == value)
 				return;
 			_focusedIndex = value;
-			FocusedIndexChanged?.Invoke(this,
-				new FileListFocusChangedEventArgs(value >= 0 && value < Items.Count ? Items[value] : null));
+			FocusedIndexChanged?.Invoke(this, EventArgs.Empty);
 			Invalidate();
 		}
 	}
 
 	/// <summary>포커스 인덱스 변경 이벤트입니다.</summary>
 	[Category("FileList")]
-	public event EventHandler<FileListFocusChangedEventArgs>? FocusedIndexChanged;
-
-	/// <summary>항목 더블클릭 이벤트입니다.</summary>
-	[Category("FileList")]
-	public event EventHandler<FileListDoubleClickEventArgs>? ItemDoubleClicked;
-
-	/// <summary>항목 클릭 이벤트입니다.</summary>
-	[Category("FileList")]
-	public event EventHandler<FileListClickEventArgs>? ItemClicked;
+	public event EventHandler? FocusedIndexChanged;
 
 	/// <summary>선택 항목 변경 이벤트입니다.</summary>
 	[Category("FileList")]
-	public event EventHandler<FileListSelectChangedEventArgs>? SelectChanged;
+	public event EventHandler? SelectionChanged;
+
+	/// <summary>포커스 항목 선택 이벤트입니다.</summary>
+	[Category("FileList")]
+	public event EventHandler? ItemActivate;
+
+	/// <summary>항목 누름 이벤트입니다.</summary>
+	[Category("FileList")]
+	public event EventHandler<FileListClickEventArgs>? ItemClicked;
 
 	/// <summary>FileList 컨트롤을 초기화합니다.</summary>
 	public FileList()
@@ -93,6 +86,9 @@ public sealed class FileList : ThemeControl
 		SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
 				 ControlStyles.ResizeRedraw | ControlStyles.UserPaint | ControlStyles.Selectable, true);
 		TabStop = true;
+
+		_props = new FileListProps(this, 1);
+		_widths = new FileListWidths();
 	}
 
 	/// <inheritdoc />
@@ -101,34 +97,343 @@ public sealed class FileList : ThemeControl
 		Font = new Font(theme.ContentFontFamily, theme.ContentFontSize, FontStyle.Regular, GraphicsUnit.Point);
 		BackColor = theme.BackContent;
 		ForeColor = theme.Foreground;
+		_props.Refresh();
 		_widths.UpdateFixed(Font);
-	}
-
-	/// <inheritdoc />
-	protected override void OnCreateControl()
-	{
-		base.OnCreateControl();
-
-		if (IsReallyDesignMode && Directory.Exists(@"C:\Windows"))
-		{
-			// 디자인 모드에서 기본 값 설정
-			BeginUpdate();
-			AddItem(new FileListFileItem(this, new FileInfo(@"C:\Windows\notepad.exe")));
-			AddItem(new FileListFileItem(this, new FileInfo(@"C:\Windows\regedit.exe")) { Selected = true });
-			AddItem(new FileListFileItem(this, new FileInfo(@"C:\Windows\win.ini")));
-			AddItem(new FileListFolderItem(this, new DirectoryInfo(@"C:\Windows\assembly")));
-			AddItem(new FileListFolderItem(this, new DirectoryInfo(@"C:\Windows\System32")));
-			AddItem(new FileListDriveItem(this, new DriveInfo("C:")));
-			EndUpdate();
-		}
+		_widths.AdjustName(Width);
 	}
 
 	/// <inheritdoc />
 	protected override void OnResize(EventArgs e)
 	{
 		base.OnResize(e);
+		_props.Refresh();
 		_widths.UpdateFixed(Font);
+		_widths.AdjustName(Width);
 		Invalidate();
+	}
+
+	/// <inheritdoc />
+	protected override void OnPaint(PaintEventArgs e)
+	{
+		if (_updating)
+			return;
+
+		base.OnPaint(e);
+
+		var g = e.Graphics;
+		var theme = Settings.Instance.Theme;
+		g.Clear(theme.BackContent);
+
+		var scrollBarVisible = _props.IsScrollBarVisible;
+		var height = Height;
+		if (scrollBarVisible)
+			height -= _props.ScrollBarSize;
+
+		// TODO: 아이템 루프를 다 돌게 아니고 페이지를 얻어 아이템의 시작과 끝을 얻어 루프를 돌도록 개선할 수 있음
+		// 그러면 if문 두개다 필요가 없게됨
+		for (var i = 0; i < Items.Count; i++)
+		{
+			var rect = _props.GetItemRect(i);
+			if (rect.Bottom <= 0) continue;
+			if (rect.Top >= height) break;
+			Items[i].Draw(g, Font, rect, _widths, theme, i == FocusedIndex);
+		}
+
+		if (scrollBarVisible)
+			DrawScrollBar(g, theme);
+	}
+
+	private void DrawScrollBar(Graphics g, Theme theme)
+	{
+		if (!_props.IsScrollBarDragging)
+		{
+			// 드래그 중이 아닐 때 스크롤바 인디케이터 범위 계산
+			_props.CalcScrollBarIndicator();
+		}
+
+		using var brushForground = new SolidBrush(theme.Foreground);
+		using var brushContent = new SolidBrush(theme.BackContent);
+		using var brushSelection = new SolidBrush(theme.BackSelection);
+		using var brushActive = new SolidBrush(theme.BackActive);
+
+		var rect = _props.ScrollBarBound;
+		g.FillRectangle(brushContent, rect);
+
+		// 지사자
+		g.FillRectangle(_props.IsScrollBarDragging ? brushActive : brushSelection,
+			_props.ScrollBarIndicatorRange.Left, rect.Top + 1,
+			_props.ScrollBarIndicatorWidth, rect.Height - 1);
+
+		// 좌/우 화살표
+		var leftRange = _props.ScrollBarLeftRange;
+		var rightRange = _props.ScrollBarRightRange;
+		Point[] leftPts =
+		[
+			new(leftRange.Left + 10, rect.Top + 2),
+			new(leftRange.Right - 8, rect.Top + rect.Height / 2),
+			new(leftRange.Left + 10, rect.Bottom - 2)
+		];
+		Point[] rightPts =
+		[
+			new(rightRange.Right - 10, rect.Top + 2),
+			new(rightRange.Left + 8, rect.Top + rect.Height / 2),
+			new(rightRange.Right - 10, rect.Bottom - 2)
+		];
+		g.FillPolygon(brushForground, leftPts);
+		g.FillPolygon(brushForground, rightPts);
+
+		// 분리선
+		using var pen = new Pen(theme.Border);
+		g.DrawLine(pen, 0, rect.Top, Width, rect.Top);
+	}
+
+	/// <inheritdoc />
+	protected override void OnMouseMove(MouseEventArgs e)
+	{
+		base.OnMouseMove(e);
+		if (_props.IsScrollBarDragging)
+		{
+			var indWidth = _props.ScrollBarIndicatorWidth;
+			var trackWidth = _props.ScrollBarTrackRange.Length;
+			var x = e.X - _props.ScrollBarTrackRange.Left - _props.ScrollBarOffset;
+			var rx = Math.Max(0, Math.Min(trackWidth - indWidth, x));
+			var page = (int)Math.Round((float)rx / (trackWidth - indWidth) * (Math.Max(1, _props.PageCount) - 1));
+			_props.ScrollToPage(page);
+
+			// 드래그 중일 때는 지시자의 위치를 업데이트하고 다시 그립니다.
+			var left = _props.ScrollBarTrackRange.Left + x;
+			var right = left + _props.ScrollBarIndicatorWidth;
+			if (left < _props.ScrollBarTrackRange.Left)
+				left = _props.ScrollBarTrackRange.Left;
+			else if (right > _props.ScrollBarTrackRange.Right)
+				left = _props.ScrollBarTrackRange.Right - _props.ScrollBarIndicatorWidth;
+			_props.ScrollBarIndicatorRange = new MinMax(left, right);
+			Invalidate();
+		}
+	}
+
+	/// <inheritdoc />
+	protected override void OnMouseDown(MouseEventArgs e)
+	{
+		base.OnMouseDown(e);
+		Focus();
+
+		if (_props.IsScrollBarVisible &&
+			_props.ScrollBarBound.Contains(e.Location) &&
+			e.Button is MouseButtons.Left or MouseButtons.Right)
+		{
+			if (_props.ScrollBarLeftRange.Contains(e.X))
+			{
+				ScrollBy(-1);
+				return;
+			}
+			if (_props.ScrollBarLeftRange.Contains(e.X))
+			{
+				ScrollBy(1);
+				return;
+			}
+			if (_props.ScrollBarIndicatorRange.Contains(e.X))
+			{
+				_props.IsScrollBarDragging = true;
+				_props.ScrollBarOffset = e.X - _props.ScrollBarIndicatorRange.Left;
+				return;
+			}
+			if (e.X < _props.ScrollBarIndicatorRange.Left)
+			{
+				ScrollBy(-1);
+				return;
+			}
+			if (e.X > _props.ScrollBarIndicatorRange.Right)
+			{
+				ScrollBy(1);
+				return;
+			}
+		}
+
+		var index = FindIndexAt(e.X, e.Y);
+		if (index < 0)
+			return;
+
+		switch (e.Button)
+		{
+			case MouseButtons.Left when (ModifierKeys & Keys.Shift) == Keys.Shift:
+				if (_anchorIndex == -1)
+					_anchorIndex = FocusedIndex;
+				SelectRange(_anchorIndex, index);
+				break;
+			case MouseButtons.Left when (ModifierKeys & Keys.Control) == Keys.Control:
+				_anchorIndex = index;
+				SelectIndex(index);
+				break;
+			case MouseButtons.Left:
+			case MouseButtons.Right:
+			case MouseButtons.Middle:
+				_anchorIndex = index;
+				break;
+			case MouseButtons.XButton1:     // 다음 버튼 클릭
+			case MouseButtons.XButton2:     // 이전 버튼 클릭
+			case MouseButtons.None:         // 잉? 이게 들어온다고?
+			default:
+				break;
+		}
+
+		FocusedIndex = index;
+		Invalidate();
+
+		ItemClicked?.Invoke(this, new FileListClickEventArgs(index, e.Button, e.Location));
+	}
+
+	/// <inheritdoc />
+	protected override void OnMouseUp(MouseEventArgs e)
+	{
+		base.OnMouseUp(e);
+		if (_props.IsScrollBarDragging)
+		{
+			_props.IsScrollBarDragging = false;
+			Invalidate();
+		}
+	}
+
+	/// <inheritdoc />
+	protected override void OnMouseDoubleClick(MouseEventArgs e)
+	{
+		base.OnMouseDoubleClick(e);
+
+		if (_props.IsScrollBarVisible &&
+			_props.ScrollBarBound.Contains(e.Location))
+			return;
+
+		// OnMouseDown에서 FocusedIndex가 설정되므로 그냥 ㄱㄱ
+		if (FocusedIndex >= 0 && FocusedIndex < Items.Count)
+			ItemActivate?.Invoke(this, EventArgs.Empty);
+	}
+
+	/// <inheritdoc />
+	protected override void OnMouseWheel(MouseEventArgs e)
+	{
+		base.OnMouseWheel(e);
+		ScrollBy(-Math.Sign(e.Delta));
+	}
+
+	/// <inheritdoc />
+	protected override bool IsInputKey(Keys keyData)
+	{
+		return keyData switch
+		{
+			Keys.Up or Keys.Down or Keys.Left or Keys.Right => true,
+			_ => base.IsInputKey(keyData)
+		};
+	}
+
+	/// <inheritdoc />
+	protected override void OnKeyDown(KeyEventArgs e)
+	{
+		base.OnKeyDown(e);
+
+		if (Items.Count == 0)
+			return;
+
+		if (FocusedIndex < 0)
+			FocusedIndex = 0;
+
+		var shift = (e.Modifiers & Keys.Shift) == Keys.Shift;
+		var prevIndex = FocusedIndex;
+		var newIndex = prevIndex;
+		var (row, col) = _props.GetRowCol(prevIndex);
+		var page = _props.GetPage(prevIndex);
+		var columns = _props.Columns;
+
+		switch (e.KeyCode)
+		{
+			case Keys.Up:
+				if (row > 0)
+					newIndex -= columns;
+				else if (page > 0)
+				{
+					// 이전 페이지 마지막 항목으로 이동
+					var prevPage = page - 1;
+					newIndex = _props.GetLastIndexOfPage(prevPage);
+					_props.ScrollToPage(prevPage);
+				}
+				break;
+			case Keys.Down:
+				if (row < _props.Rows - 1 && newIndex + columns < Items.Count)
+					newIndex += columns;
+				else if (page < _props.PageCount - 1)
+				{
+					// 다음 페이지 첫 항목으로 이동
+					var nextPage = page + 1;
+					newIndex = _props.GetFirstIndexOfPage(nextPage);
+					_props.ScrollToPage(nextPage);
+				}
+				break;
+			case Keys.Left:
+				if (col > 0)
+					newIndex--;
+				break;
+			case Keys.Right:
+				if (col < columns - 1 && newIndex + 1 < Items.Count)
+					newIndex++;
+				break;
+			case Keys.Home:
+				newIndex = 0;
+				_props.ScrollOffset = 0;
+				break;
+			case Keys.End:
+				newIndex = Items.Count - 1;
+				_props.ScrollToPage(_props.GetPage(newIndex));
+				break;
+			case Keys.PageUp:
+				ScrollBy(-1, focusMove: true);
+				return;
+			case Keys.PageDown:
+				ScrollBy(1, focusMove: true);
+				return;
+			case Keys.Space:
+			case Keys.Insert:
+				_anchorIndex = FocusedIndex;
+				SelectIndex(FocusedIndex);
+				if (FocusedIndex < Items.Count - 1)
+					FocusedIndex++;
+				Invalidate();
+				return;
+			case Keys.Return:
+				ItemActivate?.Invoke(this, EventArgs.Empty);
+				return;
+			case Keys.Back when Items.Count > 0:
+				if (Items[0] is FileListFolderItem { DirName: ".." })
+				{
+					FocusedIndex = 0;
+					ItemActivate?.Invoke(this, EventArgs.Empty);
+				}
+				return;
+			case Keys.Apps when ItemClicked != null:
+				// 메뉴키는 마우스 오른쪽 누름을 에뮬레이션
+				if (FocusedIndex >= 0 && FocusedIndex < Items.Count)
+				{
+					var rect = _props.GetItemRect(FocusedIndex);
+					ItemClicked.Invoke(this,
+						new FileListClickEventArgs(FocusedIndex, MouseButtons.Right, rect.Location));
+				}
+				return;
+		}
+
+		if (newIndex != prevIndex)
+		{
+			// scrollOffset 보정
+			_props.ScrollToPage(_props.GetPage(newIndex));
+
+			// 포커스 인덱스 변경
+			if (shift)
+			{
+				if (_anchorIndex == -1)
+					_anchorIndex = prevIndex;
+				SelectRange(_anchorIndex, newIndex);
+			}
+
+			FocusedIndex = newIndex;
+			Invalidate();
+		}
 	}
 
 	/// <summary>
@@ -157,11 +462,14 @@ public sealed class FileList : ThemeControl
 	{
 		if (!_updating)
 			return;
-		_widths.UpdateName(Items, Font);
+
 		FocusedIndex = Items.Count > 0 ? 0 : -1;
 		_anchorIndex = -1;
-		_scrollOffset = 0;
 		_updating = false;
+
+		_props.Refresh(true);
+		_widths.UpdateName(Items, Font);
+		_widths.AdjustName(Width);
 		Invalidate(false);
 	}
 
@@ -171,8 +479,12 @@ public sealed class FileList : ThemeControl
 	public void ClearItems()
 	{
 		Items.Clear();
-		FocusedIndex = -1;
-		_anchorIndex = -1;
+		if (!_updating)
+		{
+			FocusedIndex = -1;
+			_anchorIndex = -1;
+			_props.Refresh(true);
+		}
 		_widths.ResetName();
 		Invalidate();
 	}
@@ -207,37 +519,83 @@ public sealed class FileList : ThemeControl
 		Items.Add(item);
 		if (!_updating)
 		{
+			_props.Refresh();
 			_widths.UpdateName(item, Font);
+			_widths.AdjustName(Width);
 			Invalidate(false);
 		}
 	}
 
 	/// <summary>
-	/// DisplayName이 name과 같은 항목에 포커스를 주고, 해당 위치가 보이도록 스크롤합니다.
+	/// Retrieves the <see cref="FileListItem"/> at the specified index.
 	/// </summary>
-	public void FocusName(string? name)
+	/// <param name="index">The zero-based index of the item to retrieve. Must be within the range of the collection.</param>
+	/// <returns>The <see cref="FileListItem"/> at the specified index, or <see langword="null"/> if the index is out of range.</returns>
+	public FileListItem? GetItem(int index)
+	{
+		if (index < 0 || index >= Items.Count)
+			return null;
+		return Items[index];
+	}
+
+	/// <summary>
+	/// Finds the index of the item at the specified coordinates.
+	/// </summary>
+	/// <param name="x">The x-coordinate to check.</param>
+	/// <param name="y">The y-coordinate to check.</param>
+	/// <returns>The zero-based index of the item located at the specified coordinates;  returns -1 if no item is found at the given
+	/// position.</returns>
+	public int FindIndexAt(int x, int y)
+	{
+		// TODO: 이거 성능 개선 필요. 루프를 다 돌 필요없이, 페이지에서 얻을 수 있음.
+		for (var i = 0; i < Items.Count; i++)
+		{
+			var rect = _props.GetItemRect(i);
+			if (rect.Contains(x, y))
+				return i;
+		}
+		return -1;
+	}
+
+	/// <summary>
+	/// Retrieves the index of the first item with the specified name.
+	/// </summary>
+	/// <param name="name">The full name of the item to locate. Cannot be null.</param>
+	/// <returns>The zero-based index of the first item with the specified name, or -1 if no such item is found.</returns>
+	public int FindIndexByName(string name) =>
+		Items.FindIndex(item => item.FullName == name);
+
+	/// <summary>
+	/// Sets the focus to the specified item in the list and adjusts the scroll position if necessary.
+	/// </summary>
+	/// <remarks>If the specified <paramref name="index"/> is out of range, the method does nothing.  When the item
+	/// is focused, the view is scrolled to ensure the item is visible within the current viewport.</remarks>
+	/// <param name="index">The zero-based index of the item to focus. Must be within the range of available items.</param>
+	public void EnsureFocus(int index)
+	{
+		if (index < 0 || index >= Items.Count)
+			return;
+
+		FocusedIndex = index;
+
+		_props.CalcScrollOffset(index);
+		Invalidate();
+	}
+
+	/// <summary>
+	/// Ensures that the item with the specified name is focused, if it exists.
+	/// </summary>
+	/// <remarks>If the item with the specified name is not found, or if the collection of items is empty, the
+	/// method does nothing.</remarks>
+	/// <param name="name">The name of the item to focus. Can be <see langword="null"/> or empty, in which case no action is taken.</param>
+	public void EnsureFocusByName(string? name)
 	{
 		if (string.IsNullOrEmpty(name) || Items.Count == 0)
 			return;
 
-		var idx = Items.FindIndex(item => item.FullName == name);
-		if (idx < 0)
-			return;
-
-		FocusedIndex = idx;
-
-		var itemHeight = Font.Height + 6;
-		var row = idx / _columns;
-		var topRow = _scrollOffset / itemHeight;
-		var bottomRow = (_scrollOffset + Height) / itemHeight - 1;
-		if (row < topRow)
-			_scrollOffset = row * itemHeight;
-		else if (row > bottomRow)
-		{
-			var rows = (Items.Count + _columns - 1) / _columns;
-			_scrollOffset = Math.Min((row + 1) * itemHeight - Height, Math.Max(0, rows * itemHeight - Height));
-		}
-		Invalidate();
+		var index = FindIndexByName(name);
+		if (index >= 0)
+			EnsureFocus(index);
 	}
 
 	/// <summary>
@@ -285,361 +643,6 @@ public sealed class FileList : ThemeControl
 		return files;
 	}
 
-	/// <inheritdoc />
-	protected override void OnPaint(PaintEventArgs e)
-	{
-		if (_updating)
-			return;
-
-		base.OnPaint(e);
-
-		_widths.AdjustName(Width);
-
-		var g = e.Graphics;
-		var theme = Settings.Instance.Theme;
-		g.Clear(theme.BackContent);
-
-		var showScrollBar = ShouldShowScrollBar();
-		var clientHeight = Height;
-		if (showScrollBar)
-			clientHeight -= ScrollBarHeight;
-
-		var itemHeight = Font.Height + 6;
-		var itemWidth = (Width - 4) / _columns;
-		for (var i = 0; i < Items.Count; i++)
-		{
-			var col = i % _columns;
-			var row = i / _columns;
-			var x = col * itemWidth;
-			var y = row * itemHeight - _scrollOffset;
-			var rect = new Rectangle(x, y, itemWidth, itemHeight);
-			if (rect.Bottom <= 0) continue;
-			if (rect.Top >= clientHeight) break;
-			Items[i].Draw(g, Font, rect, _widths, theme, i == FocusedIndex);
-		}
-
-		if (showScrollBar)
-			DrawScrollBar(g, theme);
-	}
-
-	// 스크롤바가 필요한지 미리 계산
-	private bool ShouldShowScrollBar()
-	{
-		var itemHeight = Font.Height + 6;
-		var rows = (Items.Count + _columns - 1) / _columns;
-		var contentHeight = rows * itemHeight;
-		return contentHeight > Height - ScrollBarHeight;
-	}
-
-	// 스크롤바 그리기
-	private void DrawScrollBar(Graphics g, Theme theme)
-	{
-		var itemHeight = Font.Height + 6;
-		var contentLength = Items.Count * itemHeight;
-		var viewLength = Height - ScrollBarHeight;
-
-		if (contentLength <= viewLength)
-		{
-			_sbarIndicatorBound = Rectangle.Empty;
-			return;
-		}
-
-		var barRect = new Rectangle(0, Height - ScrollBarHeight, Width, ScrollBarHeight);
-		g.FillRectangle(new SolidBrush(theme.BackContent), barRect);
-
-		const int minIndicatorWidth = 24;
-		var ratio = (float)viewLength / contentLength;
-		var indicatorLength = Math.Max((int)(Width * ratio), minIndicatorWidth);
-		var indicatorPos = (int)((float)_scrollOffset / (contentLength - viewLength) * (Width - indicatorLength));
-		var indicatorRect = new Rectangle(indicatorPos, barRect.Top, indicatorLength, ScrollBarHeight);
-		_sbarIndicatorBound = indicatorRect;
-
-		// Draw rounded indicator (left 8, right 8)
-		using (var path = new System.Drawing.Drawing2D.GraphicsPath())
-		{
-			const int radius = 8;
-			path.AddArc(indicatorRect.Left, indicatorRect.Top, radius, ScrollBarHeight, 90, 180);
-			path.AddArc(indicatorRect.Right - radius, indicatorRect.Top, radius, ScrollBarHeight, 270, 180);
-			path.CloseFigure();
-			g.FillPath(new SolidBrush(theme.BackSelection), path);
-		}
-
-		var leftBtn = new Rectangle(0, barRect.Top, ScrollBarHeight, ScrollBarHeight);
-		var rightBtn = new Rectangle(Width - ScrollBarHeight, barRect.Top, ScrollBarHeight, ScrollBarHeight);
-		g.FillRectangle(new SolidBrush(theme.BackSelection), leftBtn);
-		g.FillRectangle(new SolidBrush(theme.BackSelection), rightBtn);
-
-		DrawArrow(g, leftBtn, false, theme);
-		DrawArrow(g, rightBtn, true, theme);
-	}
-
-	// 스크롤바 화살표 그리기
-	private static void DrawArrow(Graphics g, Rectangle rect, bool right, Theme theme)
-	{
-		Point[] pts;
-		if (right)
-			pts =
-			[
-				new Point(rect.Left + 4, rect.Top + 3), new Point(rect.Right - 4, rect.Top + rect.Height / 2),
-				new Point(rect.Left + 4, rect.Bottom - 3)
-			];
-		else
-			pts =
-			[
-				new Point(rect.Right - 4, rect.Top + 3), new Point(rect.Left + 4, rect.Top + rect.Height / 2),
-				new Point(rect.Right - 4, rect.Bottom - 3)
-			];
-		g.FillPolygon(new SolidBrush(theme.BackContent), pts);
-	}
-
-	/// <inheritdoc />
-	protected override void OnMouseMove(MouseEventArgs e)
-	{
-		base.OnMouseMove(e);
-		if (_sbarDragging)
-		{
-			var indicatorWidth = _sbarIndicatorBound.Width;
-			var barWidth = Width;
-			var indicatorX = e.Location.X - _sbarDragOffset;
-			indicatorX = Math.Max(0, Math.Min(barWidth - indicatorWidth, indicatorX));
-
-			var itemHeight = Font.Height + 6;
-			var contentLength = Items.Count * itemHeight;
-			var viewLength = Height - ScrollBarHeight;
-
-			if (contentLength <= viewLength)
-				return;
-
-			var ratio = (float)indicatorX / (barWidth - indicatorWidth);
-			_scrollOffset = (int)((contentLength - viewLength) * ratio);
-			Invalidate();
-		}
-	}
-
-	/// <inheritdoc />
-	protected override void OnMouseUp(MouseEventArgs e)
-	{
-		base.OnMouseUp(e);
-		if (_sbarDragging)
-			_sbarDragging = false;
-	}
-
-	/// <inheritdoc />
-	protected override void OnMouseDown(MouseEventArgs e)
-	{
-		base.OnMouseDown(e);
-		Focus();
-
-		// 스크롤바 조작
-		if (_sbarIndicatorBound.Contains(e.Location) && e.Button is MouseButtons.Left or MouseButtons.Right)
-		{
-			_sbarDragging = true;
-			_sbarDragOffset = e.Location.X - _sbarIndicatorBound.Left;
-			return;
-		}
-
-		// 스크롤바　좌/우 버튼 클릭
-		if (e.Location.Y >= Height - ScrollBarHeight && e.Location.Y < Height)
-		{
-			if (e.Location.X < ScrollBarHeight)
-			{
-				ScrollBy(-1);
-				return;
-			}
-			if (e.Location.X > Width - ScrollBarHeight)
-			{
-				ScrollBy(1);
-				return;
-			}
-		}
-
-		var idx = HitTest(e.Location);
-		if (idx < 0)
-			return;
-
-		switch (e.Button)
-		{
-			case MouseButtons.XButton1:
-			// 다음 버튼 클릭
-			case MouseButtons.XButton2:
-				// 이전 버튼 클릭
-				return;
-			case MouseButtons.Left when (ModifierKeys & Keys.Shift) == Keys.Shift:
-			{
-				if (_anchorIndex == -1)
-					_anchorIndex = FocusedIndex;
-				SelectRange(_anchorIndex, idx);
-				break;
-			}
-			case MouseButtons.Left when (ModifierKeys & Keys.Control) == Keys.Control:
-				SelectIndex(idx);
-				_anchorIndex = idx;
-				break;
-			case MouseButtons.Left:
-			case MouseButtons.Right:
-			case MouseButtons.Middle:
-				_anchorIndex = idx;
-				break;
-			case MouseButtons.None:
-			// 잉? 이게 들어온다고?
-			default:
-				break;
-		}
-
-		FocusedIndex = idx;
-		Invalidate();
-
-		ItemClicked?.Invoke(this, new FileListClickEventArgs(this, e.Button, e.Location));
-	}
-
-	/// <inheritdoc />
-	protected override void OnMouseDoubleClick(MouseEventArgs e)
-	{
-		base.OnMouseDoubleClick(e);
-
-		// TODO: 스크롤 바 클릭 시 더블클릭 이벤트 무시
-
-		// OnMouseDown에서 FocusedIndex가 설정되므로 그냥 ㄱㄱ
-		if (e.Button == MouseButtons.Left && FocusedIndex >= 0 && FocusedIndex < Items.Count)
-		{
-			var item = Items[FocusedIndex];
-			ItemDoubleClicked?.Invoke(this, new FileListDoubleClickEventArgs(item, FullName));
-		}
-	}
-
-	/// <inheritdoc />
-	protected override void OnMouseWheel(MouseEventArgs e)
-	{
-		base.OnMouseWheel(e);
-		ScrollBy(-Math.Sign(e.Delta), page: true);
-	}
-
-	/// <inheritdoc />
-	protected override bool IsInputKey(Keys keyData)
-	{
-		return keyData switch
-		{
-			Keys.Up or Keys.Down or Keys.Left or Keys.Right => true,
-			_ => base.IsInputKey(keyData)
-		};
-	}
-
-	/// <inheritdoc />
-	protected override void OnKeyDown(KeyEventArgs e)
-	{
-		base.OnKeyDown(e);
-
-		if (Items.Count == 0)
-			return;
-
-		if (FocusedIndex < 0)
-			FocusedIndex = 0;
-
-		var shift = (e.Modifiers & Keys.Shift) == Keys.Shift;
-		var itemHeight = Font.Height + 6;
-		var prevIndex = FocusedIndex;
-		var newIndex = prevIndex;
-		var rows = (Items.Count + _columns - 1) / _columns;
-		var viewRows = Math.Max(1, (Height - ScrollBarHeight) / itemHeight);
-		var col = prevIndex % _columns;
-		var row = prevIndex / _columns;
-
-		switch (e.KeyCode)
-		{
-			case Keys.Up:
-				if (row > 0)
-					newIndex -= _columns;
-				else if (_scrollOffset > 0)
-				{
-					// 페이지 위로 이동
-					_scrollOffset = Math.Max(0, _scrollOffset - viewRows * itemHeight);
-					newIndex = col;
-				}
-				break;
-			case Keys.Down:
-				if (row < rows - 1 && newIndex + _columns < Items.Count)
-					newIndex += _columns;
-				else if (_scrollOffset + viewRows * itemHeight < rows * itemHeight)
-				{
-					// 페이지 아래로 이동
-					_scrollOffset = Math.Min((rows * itemHeight) - viewRows * itemHeight, _scrollOffset + viewRows * itemHeight);
-					var newRow = Math.Min(rows - 1, row + 1);
-					newIndex = newRow * _columns + col;
-					if (newIndex >= Items.Count)
-						newIndex = Items.Count - 1;
-				}
-				break;
-			case Keys.Left:
-				if (col > 0)
-					newIndex--;
-				break;
-			case Keys.Right:
-				if (col < _columns - 1 && newIndex + 1 < Items.Count)
-					newIndex++;
-				break;
-			case Keys.Home:
-				newIndex = 0;
-				_scrollOffset = 0;
-				break;
-			case Keys.End:
-				newIndex = Items.Count - 1;
-				var lastRow = (Items.Count - 1) / _columns;
-				_scrollOffset = Math.Max(0, lastRow * itemHeight - (viewRows - 1) * itemHeight);
-				break;
-			case Keys.PageUp:
-				ScrollBy(-1, page: true, focusMove: true);
-				return;
-			case Keys.PageDown:
-				ScrollBy(1, page: true, focusMove: true);
-				return;
-			case Keys.Space:
-			case Keys.Insert:
-				SelectIndex(FocusedIndex);
-				_anchorIndex = FocusedIndex;
-				if (FocusedIndex < Items.Count - 1)
-					FocusedIndex++;
-				Invalidate();
-				return;
-			case Keys.Return:
-				ItemDoubleClicked?.Invoke(this, new FileListDoubleClickEventArgs(Items[FocusedIndex], FullName));
-				return;
-			case Keys.Back when Items.Count > 0:
-				if (Items[0] is FileListFolderItem { DirName: ".." } item)
-					ItemDoubleClicked?.Invoke(this, new FileListDoubleClickEventArgs(item, FullName));
-				return;
-			case Keys.Apps when ItemClicked != null:
-			{
-				var bound = GetIndexedBound(FocusedIndex);
-				if (!bound.HasValue)
-					return;
-				ItemClicked.Invoke(this, new FileListClickEventArgs(this, MouseButtons.Right, bound.Value.Location));
-				return;
-			}
-		}
-
-		// scrollOffset 보정
-		if (newIndex != prevIndex)
-		{
-			var newRow = newIndex / _columns;
-			if (newRow < _scrollOffset / itemHeight)
-				_scrollOffset = newRow * itemHeight;
-			else if (newRow >= (_scrollOffset + viewRows * itemHeight) / itemHeight)
-				_scrollOffset = Math.Min((rows * itemHeight) - viewRows * itemHeight, (newRow - viewRows + 1) * itemHeight);
-		}
-
-		if (newIndex != prevIndex)
-		{
-			if (shift)
-			{
-				if (_anchorIndex == -1)
-					_anchorIndex = prevIndex;
-				SelectRange(_anchorIndex, newIndex);
-			}
-			FocusedIndex = newIndex;
-			Invalidate();
-		}
-	}
-
 	// 아이템 선택
 	private void SelectIndex(int index)
 	{
@@ -647,7 +650,7 @@ public sealed class FileList : ThemeControl
 		if (item is FileListFileItem or FileListFolderItem { IsParent: false })
 		{
 			item.Selected = !item.Selected;
-			SelectChanged?.Invoke(this, new FileListSelectChangedEventArgs(this));
+			SelectionChanged?.Invoke(this, EventArgs.Empty);
 		}
 	}
 
@@ -664,129 +667,224 @@ public sealed class FileList : ThemeControl
 			if (item is FileListFileItem or FileListFolderItem { IsParent: false })
 				item.Selected = true;
 		}
-		SelectChanged?.Invoke(this, new FileListSelectChangedEventArgs(this));
+		SelectionChanged?.Invoke(this, EventArgs.Empty);
 		Invalidate();
-	}
-
-	// 마우스 위치에 해당하는 인덱스 반환
-	private int HitTest(Point pt)
-	{
-		var itemHeight = Font.Height + 6;
-		var itemWidth = (Width - 4) / _columns;
-		for (var i = 0; i < Items.Count; i++)
-		{
-			var col = i % _columns;
-			var row = i / _columns;
-			var x = col * itemWidth;
-			var y = row * itemHeight - _scrollOffset;
-			var rect = new Rectangle(x, y, itemWidth, itemHeight);
-			if (rect.Contains(pt)) return i;
-		}
-		return -1;
-	}
-
-	// 인덱스에 해당하는 경계 사각형을 반환합니다.
-	private Rectangle? GetIndexedBound(int index)
-	{
-		if (index < 0 || index >= Items.Count)
-			return null;
-		var itemHeight = Font.Height + 6;
-		var itemWidth = (Width - 4) / _columns;
-		var row = index / _columns;
-		var col = index % _columns;
-		var x = col * itemWidth;
-		var y = row * itemHeight - _scrollOffset;
-		return new Rectangle(x, y, itemWidth, itemHeight);
 	}
 
 	// 페이지 스크롤 및 포커스 이동 지원
-	private void ScrollBy(int direction, bool page = false, bool focusMove = false)
+	private void ScrollBy(int direction, bool focusMove = false)
 	{
-		var itemHeight = Font.Height + 6;
-		var rows = (Items.Count + _columns - 1) / _columns;
-		var viewRows = Math.Max(1, (Height - ScrollBarHeight) / itemHeight);
-		var contentHeight = rows * itemHeight;
-		var viewHeight = Height - ScrollBarHeight;
-		var step = page ? viewRows * itemHeight : itemHeight;
-		if (contentHeight <= viewHeight)
+		if (!_props.IsScrollBarVisible || Items.Count == 0)
 			return;
 
-		if (page && focusMove && Items.Count > 0)
+		var curPage = _props.CurrentPage;
+		var newPage = Math.Clamp(curPage + direction, 0, _props.LastPage);
+
+		if (focusMove)
 		{
 			if (direction < 0)
 			{
-				// PageUp: 맨 위 항목으로 포커스 이동, 이미 맨 위면 스크롤 후 새 영역 맨 위로 포커스
-				var topRow = _scrollOffset / itemHeight;
-				var curRow = FocusedIndex / _columns;
-				if (curRow <= topRow)
+				var first = _props.GetFirstIndexOfPage(curPage);
+				if (FocusedIndex > first)
+					FocusedIndex = first;
+				else
 				{
-					_scrollOffset = Math.Max(0, _scrollOffset - step);
-					topRow = _scrollOffset / itemHeight;
+					FocusedIndex = _props.GetFirstIndexOfPage(newPage);
+					_props.ScrollToPage(newPage);
 				}
-				FocusedIndex = Math.Max(0, (topRow) * _columns + FocusedIndex % _columns);
 			}
 			else
 			{
-				// PageDown: 맨 아래 항목으로 포커스 이동, 이미 맨 아래면 스크롤 후 새 영역 맨 아래로 포커스
-				var bottomRow = (_scrollOffset + viewHeight) / itemHeight - 1;
-				var curRow = FocusedIndex / _columns;
-				var maxRow = (Items.Count - 1) / _columns;
-				if (curRow >= bottomRow || bottomRow > maxRow)
+				var last = _props.GetLastIndexOfPage(curPage);
+				if (FocusedIndex < last)
+					FocusedIndex = last;
+				else
 				{
-					_scrollOffset = Math.Min(contentHeight - viewHeight, _scrollOffset + step);
-					bottomRow = (_scrollOffset + viewHeight) / itemHeight - 1;
+					FocusedIndex = _props.GetLastIndexOfPage(newPage);
+					_props.ScrollToPage(newPage);
 				}
-				FocusedIndex = Math.Min((bottomRow) * _columns + FocusedIndex % _columns, Items.Count - 1);
 			}
-			Invalidate();
 			return;
 		}
 
-		// 일반 스크롤
-		_scrollOffset += direction * step;
-		if (_scrollOffset < 0) _scrollOffset = 0;
-		if (_scrollOffset > contentHeight - viewHeight) _scrollOffset = contentHeight - viewHeight;
+		_props.ScrollToPage(newPage);
 		Invalidate();
 	}
 }
 
 /// <summary>
-/// 파일 리스트의 뷰 모드입니다.
+/// 파일 리스트의 스크롤바 및 페이지 관련 정보를 저장하는 구조체입니다.
 /// </summary>
-public enum FileListViewMode
+internal class FileListProps(FileList fileList, int columnCount)
 {
-	/// <summary>세로로 긴 리스트</summary>
-	LongList,
-	/// <summary>여러 컬럼의 짧은 리스트</summary>
-	ShortList
+	// 파일 리스트 컨트롤 참조
+	private readonly FileList _list = fileList;
+
+	public int Columns { get; set; } = columnCount;
+
+	public int Rows { get; set; }
+	public int ViewRows { get; set; }
+
+	public int ItemWidth { get; set; }
+	public int ItemHeight { get; set; }
+
+	public int ContentHeight { get; set; }
+	public int ViewHeight { get; set; }
+
+	public int PageCount { get; set; }
+	public int PageSize { get; set; }
+	public int PageStep => ViewRows * ItemHeight;
+	public int CurrentPage => ScrollOffset / PageStep;
+	public int LastPage => PageCount - 1;
+	public int ScrollOffset { get; set; }
+
+	public bool IsScrollBarVisible => ContentHeight > ViewHeight;
+	public bool IsScrollBarDragging { get; set; }
+	public int ScrollBarSize { get; set; } = 12;
+	public int ScrollBarOffset { get; set; }
+	public int ScrollBarMinIndicatorWidth { get; set; } = 24;
+	public int ScrollBarIndicatorWidth { get; set; }
+	public Rectangle ScrollBarBound { get; set; } = Rectangle.Empty;
+	public MinMax ScrollBarLeftRange { get; set; } = MinMax.Empty;
+	public MinMax ScrollBarRightRange { get; set; } = MinMax.Empty;
+	public MinMax ScrollBarTrackRange { get; set; } = MinMax.Empty;
+	public MinMax ScrollBarIndicatorRange { get; set; } = MinMax.Empty;
+
+	public void SetColumns(int column)
+	{
+		Columns = Math.Clamp(column, 1, 4);
+		Refresh();
+	}
+
+	public void Refresh(bool resetScrollOffset = false)
+	{
+		var size = _list.Size;
+		var fontHeight = _list.Font.Height;
+		var count = _list.Items.Count;
+
+		Rows = (count + Columns - 1) / Columns;
+		ViewHeight = size.Height - ScrollBarSize;
+
+		ItemHeight = fontHeight + 6;
+		ItemWidth = (size.Width - 4) / Columns;
+
+		ViewRows = Math.Max(1, ViewHeight / ItemHeight);
+		ContentHeight = Rows * ItemHeight;
+
+		PageSize = ViewRows * Columns;
+		PageCount = (count + PageSize - 1) / PageSize;
+
+		if (resetScrollOffset)
+			ScrollOffset = 0;
+		else if (ScrollOffset > ContentHeight - ViewHeight)
+			ScrollOffset = Math.Max(0, ContentHeight - ViewHeight);
+
+		if (!IsScrollBarVisible)
+		{
+			ScrollBarBound = Rectangle.Empty;
+			return;
+		}
+
+		ScrollBarBound = new Rectangle(0, size.Height - ScrollBarSize, size.Width, ScrollBarSize);
+		ScrollBarLeftRange = new MinMax(0, ScrollBarSize);
+		ScrollBarRightRange = new MinMax(size.Width - ScrollBarSize, size.Width);
+		ScrollBarTrackRange = new MinMax(ScrollBarSize, size.Width - ScrollBarSize);
+		ScrollBarIndicatorWidth = Math.Max(ScrollBarMinIndicatorWidth, ScrollBarTrackRange.Length / Math.Max(1, PageCount));
+	}
+
+	public (int row, int col) GetRowCol(int index) =>
+		(index / Columns, index % Columns);
+
+	public int GetRow(int index) =>
+		index / Columns;
+
+	public int GetColumn(int index) =>
+		index % Columns;
+
+	public int GetPage(int index) =>
+		PageSize == 0 ? 0 : index / PageSize;
+
+	public int GetIndexOfPage(int index) =>
+		PageSize == 0 ? 0 : index % PageSize;
+
+	public int GetFirstIndexOfPage(int page) =>
+		page * PageSize;
+
+	public int GetLastIndexOfPage(int page) =>
+		Math.Min((page + 1) * PageSize, _list.Items.Count) - 1;
+
+	public Rectangle GetItemRect(int index)
+	{
+		var (row, col) = GetRowCol(index);
+		var x = col * ItemWidth;
+		var y = row * ItemHeight - ScrollOffset;
+		return new Rectangle(x, y, ItemWidth, ItemHeight);
+	}
+
+	public void CalcScrollOffset(int index)
+	{
+		var row = GetRow(index);
+		var top = ScrollOffset / ItemHeight;
+		var bottom = (ScrollOffset + ViewHeight) / ItemHeight - 1;
+		if (row < top)
+			ScrollOffset = row * ItemHeight;
+		else if (row > bottom)
+		{
+			var newOffset = Math.Min((row + 1) * ItemHeight - ViewHeight, Math.Max(0, ContentHeight - ViewHeight));
+			ScrollOffset = newOffset;
+		}
+	}
+
+	public void CalcScrollBarIndicator()
+	{
+		if (!IsScrollBarVisible)
+			return;
+
+		var width = ScrollBarTrackRange.Length;
+		var pageCount = Math.Max(1, PageCount);
+		var curPage = Math.Clamp(CurrentPage, 0, pageCount - 1);
+		var indPos = (int)((float)curPage / (pageCount - 1) * (width - ScrollBarIndicatorWidth));
+		if (pageCount == 1 || indPos < 0) indPos = 0;
+		if (indPos + ScrollBarIndicatorWidth > width) indPos = width - ScrollBarIndicatorWidth;
+		var left = indPos + ScrollBarTrackRange.Left;
+		var right = left + ScrollBarIndicatorWidth;
+		ScrollBarIndicatorRange = new MinMax(left, right);
+	}
+
+	public void ScrollToPage(int page)
+	{
+		if (page < 0 || page >= PageCount)
+			return;
+		ScrollOffset = page * PageStep;
+	}
 }
 
 /// <summary>
-/// 파일 리스트의 각 컬럼 너비 정보를 저장하는 구조체입니다.
+/// 파일 리스트의 항목 너비와 기타 정보를 저장하는 구조체입니다.
 /// </summary>
-internal struct FileListWidths
+internal class FileListWidths
 {
 	/// <summary>파일/디렉터리 이름 컬럼 너비</summary>
-	public int Name;
+	public int Name { get; set; }
 	/// <summary>확장자 컬럼 너비</summary>
-	public int Extension;
+	public int Extension { get; set; }
 	/// <summary>확장자 최소 너비</summary>
-	public int MinExtension;
+	public int MinExtension { get; set; }
 
 	/// <summary>크기 컬럼 너비</summary>
-	public int Size;
+	public int Size { get; set; }
 	/// <summary>날짜 컬럼 너비</summary>
-	public int Date;
+	public int Date { get; set; }
 	/// <summary>시간 컬럼 너비</summary>
-	public int Time;
+	public int Time { get; set; }
 	/// <summary>속성 컬럼 너비</summary>
-	public int Attr;
+	public int Attr { get; set; }
 
 	/// <summary>모든 고정 컬럼 너비</summary>
-	public int Fixed;
+	public int Fixed { get; set; }
 
 	/// <summary>전체 컬럼 그릴지 여부</summary>
-	public bool IsFixedVisible;
+	public bool IsFixedVisible { get; set; }
 
 	/// <summary>
 	/// 폰트 기준으로 고정 컬럼 너비를 계산합니다.
@@ -893,11 +991,12 @@ internal struct FileListWidths
 /// </summary>
 public abstract class FileListItem(FileList fileList)
 {
-	/// <summary>선택 마크 너비</summary>
+	/// <summary> 선택 마크 너비</summary>
 	protected const int MarkWidth = 8;
 
-	/// <summary>소속 리스트</summary>
-	public FileList FileList { get; set; } = fileList;
+	/// <summary> 소속 리스트</summary>
+	protected readonly FileList _list = fileList;
+
 	/// <summary>선택 여부</summary>
 	public bool Selected { get; set; }
 	/// <summary>이름 컬럼 너비</summary>
@@ -1038,7 +1137,7 @@ public class FileListFileItem : FileListItem
 		x += widths.Extension;
 		DrawItemText(g, Size.FormatFileSize(), font, new Rectangle(x, bounds.Top, widths.Size, bounds.Height), otherColor, true);
 		x += widths.Size;
-		
+
 		if (widths.IsFixedVisible)
 		{
 			DrawItemText(g, Creation.FormatRelativeDate(), font, new Rectangle(x, bounds.Top, widths.Date, bounds.Height), otherColor);
@@ -1122,7 +1221,7 @@ public class FileListFolderItem : FileListItem
 		x += widths.Extension;
 		DrawItemText(g, "[폴더]", font, new Rectangle(x, bounds.Top, widths.Size, bounds.Height), dirColor, true);
 		x += widths.Size;
-		
+
 		if (widths.IsFixedVisible)
 		{
 			DrawItemText(g, Creation.FormatRelativeDate(), font, new Rectangle(x, bounds.Top, widths.Date, bounds.Height), otherColor);
@@ -1179,7 +1278,7 @@ public class FileListDriveItem : FileListItem
 	internal override void Draw(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Theme theme, bool focused)
 	{
 		base.Draw(g, font, bounds, widths, theme, focused);
-		
+
 		var driveColor = focused ? theme.BackContent : Color;
 		var x = bounds.Left + 28;
 		var w = widths.Name + widths.Extension;
@@ -1189,56 +1288,16 @@ public class FileListDriveItem : FileListItem
 }
 
 /// <summary>
-/// 포커스 변화 이벤트 인자입니다.
-/// </summary>
-public class FileListFocusChangedEventArgs(FileListItem? item) : EventArgs
-{
-	/// <summary>포커스된 항목입니다.</summary>
-	public FileListItem? Item { get; } = item;
-}
-
-/// <summary>
-/// 더블클릭 이벤트 인자입니다.
-/// </summary>
-public class FileListDoubleClickEventArgs(FileListItem? item, string fullName) : EventArgs
-{
-	/// <summary>더블클릭된 항목입니다.</summary>
-	public FileListItem? Item { get; } = item;
-	/// <summary>항목의 전체 경로입니다.</summary>
-	public string FullName { get; } = fullName;
-}
-
-/// <summary>
 /// 파일 리스트 클릭 이벤트 인자입니다.
 /// </summary>
-public class FileListClickEventArgs : EventArgs
+public class FileListClickEventArgs(int index, MouseButtons button, Point location) : EventArgs
 {
+	/// <summary>클릭한 항목 순번입니다.</summary>
+	public int Index { get; } = index;
+
 	/// <summary>클릭된 마우스 버튼입니다.</summary>
-	public MouseButtons Button { get; }
+	public MouseButtons Button { get; } = button;
+
 	/// <summary>클릭 위치(컨트롤 기준 좌표)입니다.</summary>
-	public Point Location { get; }
-	/// <summary>클릭 위치(스크린 기준 좌표)입니다.</summary>
-	public Point ScreenLocation { get; }
-
-	/// <summary>
-	/// 파일 리스트 클릭 이벤트 인자를 생성합니다.
-	/// </summary>
-	/// <param name="fileList">클릭이 발생한 파일 리스트 컨트롤입니다.</param>
-	/// <param name="button">클릭된 마우스 버튼입니다.</param>
-	/// <param name="location">클릭 위치(컨트롤 기준 좌표)입니다.</param>
-	public FileListClickEventArgs(FileList fileList, MouseButtons button, Point location)
-	{
-		Button = button;
-		Location = location;
-		ScreenLocation = fileList.PointToScreen(location);
-	}
-}
-
-/// <summary>
-/// 파일 리스트 선택 항목 변경 이벤트 인자입니다.
-/// </summary>
-public class FileListSelectChangedEventArgs(FileList fileList) : EventArgs
-{
-	/// <summary>파일 리스트 컨트롤입니다.</summary>
-	public FileList FileList { get; } = fileList;
+	public Point Location { get; } = location;
 }

@@ -12,8 +12,8 @@ public struct Theme
 	public Color BackActive = Color.FromArgb(0, 150, 136);
 	public Color BackSelection = Color.FromArgb(63, 63, 70);
 	public Color BackContent = Color.FromArgb(20, 20, 20);
-	public Color Border = Color.FromArgb(63, 63, 70);
 
+	public Color Border = Color.FromArgb(63, 63, 70);
 	public Color Accelerator = Color.FromArgb(255, 128, 64);
 	public Color Drive = Color.FromArgb(0x80, 0x80, 0xFF);
 	public Color Folder = Color.FromArgb(0xea, 0x22, 0x22);

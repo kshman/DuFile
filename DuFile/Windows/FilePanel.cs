@@ -128,9 +128,9 @@ public class FilePanel : UserControl, IThemeUpate
 		fileList.TabIndex = 4;
 		fileList.Text = "fileList1";
 		fileList.FocusedIndexChanged += fileList_FocusedIndexChanged;
-		fileList.ItemDoubleClicked += fileList_ItemDoubleClicked;
+		fileList.SelectionChanged += fileList_SelectionChanged;
+		fileList.ItemActivate += fileList_ItemActivate;
 		fileList.ItemClicked += fileList_ItemClicked;
-		fileList.SelectChanged += fileList_SelectChanged;
 		fileList.MouseDown += fileList_MouseDown;
 		// 
 		// infoPanel
@@ -457,9 +457,10 @@ public class FilePanel : UserControl, IThemeUpate
 		SetActivePanel(true);
 	}
 
-	private void fileList_FocusedIndexChanged(object? sender, FileListFocusChangedEventArgs e)
+	private void fileList_FocusedIndexChanged(object? sender, EventArgs e)
 	{
-		switch (e.Item)
+		var item = fileList.GetItem(fileList.FocusedIndex);
+		switch (item)
 		{
 			case null:
 			{
@@ -496,9 +497,10 @@ public class FilePanel : UserControl, IThemeUpate
 		}
 	}
 
-	private void fileList_ItemDoubleClicked(object? sender, FileListDoubleClickEventArgs e)
+	private void fileList_ItemActivate(object? sender, EventArgs e)
 	{
-		switch (e.Item)
+		var item = fileList.GetItem(fileList.FocusedIndex);
+		switch (item)
 		{
 			case null:
 				break;
@@ -511,7 +513,7 @@ public class FilePanel : UserControl, IThemeUpate
 			case FileListFolderItem dirItem:
 			{
 				var di = dirItem.Info;
-				NavigateTo(di.FullName, e.FullName);
+				NavigateTo(di.FullName, fileList.FullName);
 				break;
 			}
 			case FileListDriveItem driveItem:
@@ -531,11 +533,14 @@ public class FilePanel : UserControl, IThemeUpate
 			// 오른쪽 눌리면 쉘 컨텍스트 메뉴를 띄운다
 			var l = fileList.GetSelectedOrFocused();
 			if (l.Count > 0)
-				MainForm?.ExcuteShowContextMenu(fileList, e.ScreenLocation, l);
+			{
+				var scrPos = fileList.PointToScreen(e.Location);
+				MainForm?.ExcuteShowContextMenu(fileList, scrPos, l);
+			}
 		}
 	}
 
-	private void fileList_SelectChanged(object? sender, FileListSelectChangedEventArgs e)
+	private void fileList_SelectionChanged(object? sender, EventArgs e)
 	{
 		var count = fileList.GetSelectedCount();
 		if (count == 0)
@@ -625,7 +630,7 @@ public class FilePanel : UserControl, IThemeUpate
 		}
 
 		fileList.EndUpdate();
-		fileList.FocusName(selection);
+		fileList.EnsureFocusByName(selection);
 
 		// 폴더 정보
 		pathLabel.SetFolderInfo(_current.FullName, dirCount, fileCount, totalSize);
