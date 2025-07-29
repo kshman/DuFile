@@ -503,6 +503,9 @@ public sealed class FileList : ThemeControl
 		_anchorIndex = -1;
 		EnsureIndex(FocusedIndex = Items.Count > 0 ? 0 : -1);
 
+		var settings = Settings.Instance;
+		Sort(settings.SortOrder, settings.SortDescending);
+
 		_needRefresh = true;
 		Invalidate();
 	}
@@ -802,6 +805,132 @@ public sealed class FileList : ThemeControl
 		var left = indPos + _sbTrackRange.Left;
 		var right = left + _sbIndWidth;
 		_sbIndRange = new MinMax(left, right);
+	}
+
+	/// <summary>
+	/// Sorts the items in the list based on the specified order and direction.
+	/// </summary>
+	/// <remarks>The method sorts different types of items (folders, files, drives) using specific criteria. Folders
+	/// are prioritized to appear at the top if they are parent folders. Drives are always sorted by name.</remarks>
+	/// <param name="order">Determines the sorting criteria: 0 for name, 1 for extension, 2 for size, 3 for date, and 4 for attributes.</param>
+	/// <param name="desc">If <see langword="true"/>, sorts the items in descending order; otherwise, sorts in ascending order.</param>
+	public void Sort(int order, bool desc)
+	{
+		if (Items.Count == 0)
+			return;
+
+		var sign = desc ? -1 : 1;
+		Items.Sort((l, r) =>
+		{
+			var typeA = DetemineItemType(l);
+			var typeB = DetemineItemType(r);
+			if (typeA != typeB)
+				return typeA.CompareTo(typeB);
+
+			int cmp;
+			switch (typeA)
+			{
+				case 0 when typeB == 0:
+				{
+					var a = (FileListFolderItem)l;
+					var b = (FileListFolderItem)r;
+
+					// 부모 폴더는 항상 맨 위에 오도록 정렬
+					if (a.IsParent || b.IsParent)
+					{
+						switch (a.IsParent)
+						{
+							case true when !b.IsParent:
+								return -1;
+							case false when b.IsParent:
+								return 1;
+						}
+					}
+
+					if (order != 3)
+						cmp = Alter.CompareNatualFilename(a.DirName, b.DirName);
+					else
+					{
+						cmp = a.LastWrite.CompareTo(b.LastWrite);
+						if (cmp == 0)
+							cmp = Alter.CompareNatualFilename(a.DirName, b.DirName);
+					}
+
+					break;
+				}
+				case 2 when typeB == 2:
+				{
+					var a = (FileListDriveItem)l;
+					var b = (FileListDriveItem)r;
+
+					// 드라이브는 정렬 방법과 상관없이 항상 이름으로 정렬
+					return string.Compare(a.Letter, b.Letter, StringComparison.OrdinalIgnoreCase);
+				}
+				case 1 when typeB == 1:
+				{
+					var a = (FileListFileItem)l;
+					var b = (FileListFileItem)r;
+					switch (order)
+					{
+						case 0: // 이름 -> 확장자
+							cmp = Alter.CompareNatualFilename(a.FileName, b.FileName);
+							if (cmp == 0)
+								cmp = Alter.CompareNatualFilename(a.Extension, b.Extension);
+							break;
+						case 1: // 확장자 -> 이름
+							cmp = Alter.CompareNatualFilename(a.Extension, b.Extension);
+							if (cmp == 0)
+								cmp = Alter.CompareNatualFilename(a.FileName, b.FileName);
+							break;
+						case 2: // 파일 크기 -> 이름 -> 확장자
+							cmp = a.Size.CompareTo(b.Size);
+							if (cmp == 0)
+							{
+								cmp = Alter.CompareNatualFilename(a.FileName, b.FileName);
+								if (cmp == 0)
+									cmp = Alter.CompareNatualFilename(a.Extension, b.Extension);
+							}
+							break;
+						case 3: // 날짜 -> 이름 -> 확장자
+							cmp = a.LastWrite.CompareTo(b.LastWrite);
+							if (cmp == 0)
+							{
+								cmp = Alter.CompareNatualFilename(a.FileName, b.FileName);
+								if (cmp == 0)
+									cmp = Alter.CompareNatualFilename(a.Extension, b.Extension);
+							}
+							break;
+						case 4: // 속성 -> 이름 -> 확장자
+							cmp = a.Attributes.CompareTo(b.Attributes);
+							if (cmp == 0)
+							{
+								cmp = Alter.CompareNatualFilename(a.FileName, b.FileName);
+								if (cmp == 0)
+									cmp = Alter.CompareNatualFilename(a.Extension, b.Extension);
+							}
+							break;
+						default:
+							cmp = Alter.CompareNatualFilename(a.FileName, b.FileName);
+							break;
+					}
+					break;
+				}
+				default:
+					cmp = Alter.CompareNatualFilename(l.FullName, r.FullName);
+					break;
+			}
+
+			return cmp * sign;
+		});
+		return;
+
+		int DetemineItemType(FileListItem item) => item switch
+		{
+			FileListFolderItem => 0,
+			FileListFileItem => 1,
+			FileListDriveItem => 2,
+			_ => 3 // 기타
+		};
 	}
 }
 
@@ -1223,7 +1352,7 @@ public class FileListFileItem : FileListItem
 
 		prop.SetWidth(widths.Size);
 		TextRenderer.DrawText(g, suffix, prop.Font, prop.Bound,
-			prop.Focused ? prop.Theme.Focus : scolor, 
+			prop.Focused ? prop.Theme.Focus : scolor,
 			TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
 
 		prop.SetWidth(widths.Size - slen + 4);  // 4는 달라 붙는거 같아서 여백을 줄인것
@@ -1302,18 +1431,20 @@ public class FileListDriveItem : FileListItem
 	public DriveType Type { get; }
 	/// <summary>드라이브 포맷</summary>
 	public string Format { get; }
+	/// <summary>드라이브 번호</summary>
+	public string Letter => DriveName.TrimEnd('\\');
 
 	/// <summary>
 	/// 드라이브 항목을 생성합니다. 드라이브명, 볼륨 라벨, 아이콘, 색상 등을 설정합니다.
 	/// </summary>
 	/// <remarks>드라이브명과 볼륨 라벨을 추출 및 포맷하고, 아이콘과 테마 색상을 적용합니다.</remarks>
 	/// <param name="driveInfo">드라이브 정보를 초기화에 사용합니다.</param>
-	public FileListDriveItem(DriveInfo driveInfo) : 		
+	public FileListDriveItem(DriveInfo driveInfo) :
 		base(driveInfo.Name)
 	{
 		DriveName = driveInfo.Name;
 		VolumeLabel = driveInfo.VolumeLabel;
-		DisplayName = $"{DriveName.TrimEnd('\\')} {VolumeLabel}";
+		DisplayName = $"{Letter} {VolumeLabel}";
 		Total = driveInfo.TotalSize;
 		Available = driveInfo.AvailableFreeSpace;
 		Format = driveInfo.DriveFormat;

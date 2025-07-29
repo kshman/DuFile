@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Runtime.InteropServices;
+using System.Text;
 
 namespace DuFile.Dowa;
 
@@ -106,5 +107,43 @@ internal static class Alter
 		return string.IsNullOrWhiteSpace(input) ? 
 			[] : 
 			input.Split(separator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+	}
+
+	// Win32 CompareStringEx P/Invoke 선언
+	private const uint NORM_IGNORECASE = 0x00000001;
+	private const uint SORT_DIGITSASNUMBERS = 0x00000008;
+
+#pragma warning disable SYSLIB1054
+	[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+	private static extern int CompareStringEx(
+		string lpLocaleName, uint dwCmpFlags,
+		string lpString1, int cchCount1,
+		string lpString2, int cchCount2,
+		IntPtr lpVersionInformation, IntPtr lpReserved, int lParam);
+#pragma warning restore SYSLIB1054
+
+	// 자연스러운 파일명 비교 (Windows 탐색기와 동일)
+	public static int CompareNatualFilename(string? left, string? right)
+	{
+		if (ReferenceEquals(left, right)) return 0;
+		if (left is null) return -1;
+		if (right is null) return 1;
+
+		// Win32 API로 비교 (LOCALE_NAME_USER_DEFAULT, 대소문자 무시, 숫자 자연 정렬)
+		var result = CompareStringEx(
+			"", // LOCALE_NAME_USER_DEFAULT
+			NORM_IGNORECASE | SORT_DIGITSASNUMBERS,
+			left, left.Length,
+			right, right.Length,
+			IntPtr.Zero, IntPtr.Zero, 0);
+
+		// CompareStringEx는 1(less), 2(equal), 3(greater) 반환
+		return result switch
+		{
+			1 => -1,
+			2 => 0,
+			3 => 1,
+			_ => string.Compare(left, right, StringComparison.OrdinalIgnoreCase)
+		};
 	}
 }

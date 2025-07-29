@@ -482,12 +482,12 @@ public class FilePanel : UserControl, IThemeUpate
 				fileInfoLabel.Text = vi.Type switch
 				{
 					DriveType.Fixed or DriveType.Ram =>
-						$"{vi.VolumeLabel} ({vi.DriveName}) | {vi.Format} 디스크 | {vi.Available.FormatFileSize()} 남음 / {vi.Total.FormatFileSize()}",
+						$"{vi.VolumeLabel} ({vi.Letter}) | {vi.Format} 디스크 | {vi.Available.FormatFileSize()} 남음 / {vi.Total.FormatFileSize()}",
 					DriveType.Removable =>
-						$"{vi.VolumeLabel} ({vi.DriveName} ) | {vi.Format} 이동식 디스크 | {vi.Available.FormatFileSize()} 남음 / {vi.Total.FormatFileSize()}",
-					DriveType.Network => $"{vi.VolumeLabel} ({vi.DriveName}) | 네트워크 드라이브",
-					DriveType.CDRom => $"{vi.VolumeLabel} ({vi.DriveName}) | 광 디스크",
-					_ => $"{vi.VolumeLabel} ({vi.DriveName}) | 알 수 없는 드라이브"
+						$"{vi.VolumeLabel} ({vi.Letter} ) | {vi.Format} 이동식 디스크 | {vi.Available.FormatFileSize()} 남음 / {vi.Total.FormatFileSize()}",
+					DriveType.Network => $"{vi.VolumeLabel} ({vi.Letter}) | 네트워크 드라이브 | {vi.Available.FormatFileSize()} 남음 / {vi.Total.FormatFileSize()}",
+					DriveType.CDRom => $"{vi.VolumeLabel} ({vi.Letter}) | 광 디스크 | {vi.Total.FormatFileSize()}",
+					_ => $"{vi.VolumeLabel} ({vi.Letter}) | 알 수 없는 드라이브"
 				};
 				break;
 			}
