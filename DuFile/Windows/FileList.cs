@@ -838,7 +838,7 @@ internal class FileListWidths
 	public bool IsDriveInfoVisible { get; set; }
 
 	// 드라이브 그래프 너비
-	private readonly MinMax rangeOfDriveGraph = new(40, 80);
+	private readonly MinMax rangeOfDriveGraph = new(40, 90);
 
 	/// <summary>
 	/// 폰트 기준으로 고정 컬럼 너비를 계산합니다.
@@ -916,7 +916,7 @@ internal class FileListWidths
 		var remainWidth = (IsFixedVisible ? width - fixedSize : width) - Size;
 		if (Name + Extension == 0)
 		{
-			// 이름과 확장자가 모두 0인 경우
+			// 이름과 확장이가 모두 0인 경우
 			Name = remainWidth;
 		}
 		else if (Name == Extension)
@@ -1325,14 +1325,29 @@ public class FileListDriveItem : FileListItem
 		base.Draw(g, prop, widths);
 
 		DrawAccentText(g, prop, VolumeLabel, widths.DriveName);
-		// TODO: 드라이브 용량 그래프 등 추가 가능
 
-		var graphWidth = widths.DriveGraph;
-
-		// 그래프를 그리고 공간이 남으면 드라이브 정보 표시
-		if (prop.Width + widths.DriveInfo < prop.BaseWidth)
+		// 드라이브 용량 그래프 그리기
+		if (Total > 0)
 		{
-			
+			var width = widths.DriveGraph;
+			var height = (int)(prop.Height * 0.5f);
+			var top = prop.Top + (prop.Height - height) / 2;
+			var left = prop.Left;
+
+			var ratio = (Total - Available) / (float)Total;
+			var used = (int)(width * ratio);
+
+			using (var backBrush = new SolidBrush(prop.Theme.Background))
+				g.FillRectangle(backBrush, left, top, used, height);
+
+			using (var borderPen = new Pen(prop.Theme.Border))
+				g.DrawRectangle(borderPen, left, top, width - 1, height - 1);
+
+			prop.Advance(width);
+
+			// 드라이브 정보 표시 (공간이 충분할 때만)
+			if (prop.Width + widths.DriveInfo < prop.BaseWidth)
+				DrawText(g, prop, $"{Available.FormatFileSize()} 남음", widths.DriveInfo, true);
 		}
 	}
 }
