@@ -4,11 +4,21 @@ namespace DuFile.Dowa;
 
 internal static class Alter
 {
-	private static readonly string[] SizeSuffixes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+	private static readonly string[] SizeSuffixes = ["", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+
+	// 파일 크기 숫자 부분만 변환
+	private static string SizeFormatNumber(double size) => size switch
+	{
+		>= 100 => Math.Round(size).ToString("0"),
+		>= 10 => Math.Round(size, 1).ToString("0.0"),
+		_ => Math.Round(size, 2).ToString("0.00")
+	};
 
 	// 크기를 사람이 읽을 수 있는 형식으로 변환
 	public static string FormatFileSize(this long bytes)
 	{
+		if (bytes < 1024)
+			return $"{bytes}";
 		double len = bytes;
 		var order = 0;
 		while (len >= 1024 && order < SizeSuffixes.Length - 1)
@@ -16,7 +26,26 @@ internal static class Alter
 			order++;
 			len /= 1024;
 		}
-		return $"{len:0.##} {SizeSuffixes[order]}";
+		return $"{SizeFormatNumber(len)} {SizeSuffixes[order]}";
+	}
+
+	// 파일 리스트를 위한 파일 크기 포맷
+	public static string FormatFileSize(long bytes, out string suffix)
+	{
+		if (bytes < 1024)
+		{
+			suffix = string.Empty;
+			return $"{bytes}";
+		}
+		double len = bytes;
+		var order = 0;
+		while (len >= 1024 && order < SizeSuffixes.Length - 1)
+		{
+			order++;
+			len /= 1024;
+		}
+		suffix = SizeSuffixes[order];
+		return SizeFormatNumber(len);
 	}
 
 	// 파일 속성을 사람이 읽을 수 있는 형식으로 변환
@@ -33,14 +62,14 @@ internal static class Alter
 	// 날짜를 오늘 기준 30일 내 상대 문구로 변환
 	public static string FormatRelativeDate(this DateTime date)
 	{
-		var now = DateTime.Now;
-		var diff = now - date;
-		return diff.TotalDays switch
+		var now = DateTime.Now.Date;
+		var diff = now - date.Date;
+		return diff.Days switch
 		{
 			< 1 => "오늘",
 			< 2 => "어제",
 			< 3 => "그저께",
-			< 30 => $"{(int)diff.TotalDays}일 전",
+			< 31 => $"{(int)diff.TotalDays}일 전",
 			_ => date.ToString("yyyy-MM-dd")
 		};
 	}

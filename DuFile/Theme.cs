@@ -2,31 +2,35 @@
 namespace DuFile;
 
 /// <summary>
-/// 테마를 정의하는 구조체입니다.
+/// 테마를 정의하는 클래스입니다.
 /// </summary>
-public struct Theme
+public class Theme
 {
-	public Color Foreground = Color.FromArgb(241, 241, 241);
-	public Color Background = Color.FromArgb(37, 37, 37);
-	public Color BackHover = Color.FromArgb(0, 122, 204);
-	public Color BackActive = Color.FromArgb(0, 150, 136);
-	public Color BackSelection = Color.FromArgb(63, 63, 70);
-	public Color BackContent = Color.FromArgb(20, 20, 20);
+	public Color Background { get; set; } = Color.FromArgb(37, 37, 37);
+	public Color BackHover { get; set; } = Color.FromArgb(0, 122, 204);
+	public Color BackActive { get; set; } = Color.FromArgb(0, 150, 136);
+	public Color BackSelection { get; set; } = Color.FromArgb(63, 63, 70);
+	public Color BackContent { get; set; } = Color.FromArgb(20, 20, 20);
 
-	public Color Border = Color.FromArgb(63, 63, 70);
-	public Color Accelerator = Color.FromArgb(255, 128, 64);
-	public Color Drive = Color.FromArgb(0x80, 0x80, 0xFF);
-	public Color Folder = Color.FromArgb(0xea, 0x22, 0x22);
-	public Color Hidden = Color.FromArgb(255, 0, 0);
-	public Color ReadOnly = Color.FromArgb(255, 255, 0);
+	public Color Foreground { get; set; } = Color.FromArgb(241, 241, 241);
+	public Color Focus { get; set; } = Color.FromArgb(20, 20, 20);
+	public Color Accelerator { get; set; } = Color.FromArgb(255, 128, 64);
+	public Color File { get; set; } = Color.FromArgb(192, 192, 192);
+	public Color Drive { get; set; } = Color.FromArgb(0x80, 0x80, 0xFF);
+	public Color Folder { get; set; } = Color.FromArgb(0xea, 0x22, 0x22);
+	public Color Hidden { get; set; } = Color.FromArgb(255, 0, 0);
+	public Color ReadOnly { get; set; } = Color.FromArgb(255, 255, 0);
+	public Color DebugLine { get; set; } = Color.FromArgb(255, 255, 0);
+	public Color Border { get; set; } = Color.FromArgb(63, 63, 70);
 
-	public string UiFontFamily = "맑은 고딕";
-	public float UiFontSize = 10.0f;
+	public string UiFontFamily { get; set; } = "맑은 고딕";
+	public float UiFontSize { get; set; } = 10.0f;
 
-	public string ContentFontFamily = "맑은 고딕";
-	public float ContentFontSize = 10.0f;
+	public string ContentFontFamily { get; set; } = "맑은 고딕";
+	public float ContentFontSize { get; set; } = 10.0f;
 
 	internal readonly Dictionary<string, Color> ColorExtension = [];
+	internal readonly Dictionary<string, Color> ColorSize = [];
 
 	public Theme()
 	{
@@ -36,6 +40,10 @@ public struct Theme
 	// 확장자 색깔 얻기
 	public Color GetColorExtension(string ext) =>
 		ColorExtension.GetValueOrDefault(ext.ToUpperInvariant(), Foreground);
+
+	// 크기 색깔 얻기
+	public Color GetColorSize(string suffix) =>
+		ColorSize.GetValueOrDefault(suffix, File);
 }
 
 /// <summary>

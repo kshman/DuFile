@@ -1,4 +1,6 @@
-﻿namespace DuFile.Windows;
+﻿using System.Drawing.Drawing2D;
+
+namespace DuFile.Windows;
 
 /// <summary>
 /// 파일, 디렉터리, 드라이브 항목을 표시하고 관리하는 커스텀 리스트 컨트롤입니다.
@@ -24,7 +26,7 @@ public sealed class FileList : ThemeControl
 	private int _anchorIndex = -1;
 
 	// 열(컬럼) 개수
-	private int _columns = 2;
+	private int _columns = 1;
 	// 전체 줄(행) 개수
 	private int _rows;
 
@@ -89,7 +91,12 @@ public sealed class FileList : ThemeControl
 	/// <summary>스크롤 바 높이입니다.</summary>
 	[Browsable(false)]
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-	public int ScrollBarSize => SbSize;
+	public int ScrollBarSize { get; set; } = SbSize;
+
+	/// <summary>세로 줄을 그립니다.</summary>
+	[Browsable(false)]
+	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+	public bool ShowVerticalLine { get; set; } = false;
 
 	/// <summary>현재 포커스된 항목의 인덱스입니다.</summary>
 	[Browsable(false)]
@@ -174,17 +181,39 @@ public sealed class FileList : ThemeControl
 		}
 
 		PrepareIndex();
+		var prop = new FileListDrawProp(Font, theme);
 		var first = _firstIndex;
 		var count = _lastIndex - first + 1;
 		for (var i = 0; i < count; i++)
 		{
-			var rect = GetItemRect(i);
 			var index = first + i;
-			Items[index].Draw(g, Font, rect, _widths, theme, index == FocusedIndex);
+			prop.Reset(GetItemRect(i), index == FocusedIndex);
+			Items[index].Draw(g, prop, _widths);
 		}
 
 		if (IsScrollBarVisible)
 			DrawScrollBar(g, theme);
+
+		if (ShowVerticalLine)
+		{
+			using var pen = new Pen(theme.DebugLine, 1);
+			pen.DashStyle = DashStyle.Dash;
+			var x = FileListDrawProp.LeadingWidth;
+			g.DrawLine(pen, x, 0, x, Height);
+			x += _widths.Name;
+			g.DrawLine(pen, x, 0, x, Height);
+			x += _widths.Extension;
+			g.DrawLine(pen, x, 0, x, Height);
+			x += _widths.Size;
+			if (_widths.IsFixedVisible)
+			{
+				g.DrawLine(pen, x, 0, x, Height);
+				x += _widths.Date;
+				g.DrawLine(pen, x, 0, x, Height);
+				x += _widths.Time;
+				g.DrawLine(pen, x, 0, x, Height);
+			}
+		}
 	}
 
 	// 스크롤바를 그립니다.
@@ -338,7 +367,7 @@ public sealed class FileList : ThemeControl
 		var index = FindIndexAt(e.X, e.Y);
 		if (index < 0 || index >= Items.Count)
 			return;
-		
+
 		FocusedIndex = index;
 		ItemActivate?.Invoke(this, EventArgs.Empty);
 	}
@@ -411,7 +440,7 @@ public sealed class FileList : ThemeControl
 				ItemActivate?.Invoke(this, EventArgs.Empty);
 				return;
 			case Keys.Back when Items.Count > 0:
-				if (Items[0] is FileListFolderItem { DirName: ".." })
+				if (Items[0] is FileListFolderItem { IsParent: true })
 				{
 					FocusedIndex = 0;
 					ItemActivate?.Invoke(this, EventArgs.Empty);
@@ -510,7 +539,7 @@ public sealed class FileList : ThemeControl
 	/// 상위 폴더 항목을 추가합니다.
 	/// </summary>
 	public void AddParentFolder(DirectoryInfo dirInfo) =>
-		AddItem(new FileListFolderItem(dirInfo, "..", true));
+		AddItem(new FileListFolderItem(dirInfo, true));
 
 	/// <summary>
 	/// 드라이브 항목을 추가합니다.
@@ -785,6 +814,11 @@ internal class FileListWidths
 	public int Name { get; set; }
 	/// <summary>확장자 컬럼 너비</summary>
 	public int Extension { get; set; }
+	/// <summary>드라이브 이름 너비</summary>
+	public int DriveName { get; set; }
+	/// <summary>드라이브 그래프 너비</summary>
+	public int DriveGraph { get; set; }
+
 	/// <summary>확장자 최소 너비</summary>
 	public int MinExtension { get; set; }
 	/// <summary>크기 컬럼 너비</summary>
@@ -795,21 +829,29 @@ internal class FileListWidths
 	public int Time { get; set; }
 	/// <summary>속성 컬럼 너비</summary>
 	public int Attr { get; set; }
-	/// <summary>보이는 컬럼 너비</summary>
-	public int Visible { get; set; }
 	/// <summary>전체 고정 컬럼 표시 여부</summary>
 	public bool IsFixedVisible { get; set; }
+
+	/// <summary>드라이브 정보</summary>
+	public int DriveInfo { get; set; }
+	/// <summary>드라이브 정보 표시 여부</summary>
+	public bool IsDriveInfoVisible { get; set; }
+
+	// 드라이브 그래프 너비
+	private readonly MinMax rangeOfDriveGraph = new(40, 80);
 
 	/// <summary>
 	/// 폰트 기준으로 고정 컬럼 너비를 계산합니다.
 	/// </summary>
 	public void UpdateFixed(Font font)
 	{
-		MinExtension = TextRenderer.MeasureText("WWW", font).Width + 4;
-		Size = TextRenderer.MeasureText("999.99 WB", font).Width + 8;
+		MinExtension = TextRenderer.MeasureText("9W9", font).Width + 2;
+		Size = TextRenderer.MeasureText("999.99 WB", font).Width + 4;
 		Date = TextRenderer.MeasureText("9999-99-99", font).Width + 4;
 		Time = TextRenderer.MeasureText("99:99", font).Width + 4;
-		Attr = TextRenderer.MeasureText("WWWW", font).Width + 4;
+		Attr = TextRenderer.MeasureText("ARHS", font).Width + 2;
+
+		DriveInfo = TextRenderer.MeasureText("999.99 WB 남음", font).Width + 2;
 	}
 
 	/// <summary>
@@ -819,12 +861,28 @@ internal class FileListWidths
 	{
 		Name = 0;
 		Extension = 0;
+		DriveName = 0;
+
 		foreach (var item in items)
 		{
-			item.NameWidth = TextRenderer.MeasureText(item.DisplayName, font).Width + 8;
-			item.ExtWidth = TextRenderer.MeasureText(item.DisplayExtension, font).Width + 8;
-			if (item.NameWidth > Name) Name = item.NameWidth;
-			if (item.ExtWidth > Extension) Extension = item.ExtWidth;
+			int len;
+			switch (item)
+			{
+				case FileListFileItem fileItem:
+				{
+					len = TextRenderer.MeasureText(fileItem.FileName, font).Width + 2;
+					if (len > Name) Name = len;
+					len = TextRenderer.MeasureText(fileItem.Extension, font).Width + 2;
+					if (len > Extension) Extension = len;
+					break;
+				}
+				case FileListDriveItem driveItem:
+				{
+					len = TextRenderer.MeasureText(driveItem.VolumeLabel, font).Width + 2;
+					if (len > DriveName) DriveName = len;
+					break;
+				}
+			}
 		}
 	}
 
@@ -840,23 +898,34 @@ internal class FileListWidths
 	/// <summary>
 	/// 컨트롤 너비에 맞게 이름/확장자 너비를 조정합니다.
 	/// </summary>
-	public bool AdjustName(int width, int columns)
+	/// <remarks>자동 열 너비를 구현하기 위해 <see cref="UpdateName"/>과 별도로 호출합니다.</remarks>
+	public int AdjustName(int width, int columns)
 	{
 		var fixedSize = Date + Time + Attr;
-		width -= FileListItem.LeadingWidth; // 선두 너비 제외해야 한다!
-		IsFixedVisible = columns == 1 && fixedSize <= width * 0.4;
 
-		var remainWidth = IsFixedVisible ? width - fixedSize : width;
-		if (Name + Extension + Size == remainWidth)
+		width -= FileListDrawProp.LeadingWidth; // 선두 너비 제외해야 한다!
+
+		// 파일 이름 처리
+		IsFixedVisible = columns == 1 && fixedSize <= width * 0.4f;
+		if (Name + Extension > width * 0.8f)
 		{
-			// 이게 될리가 있나. 하지만 일단 넣어보자.
-			var min = Math.Min(Extension, MinExtension);
-			Name = remainWidth - min - Size;
-			Extension = min;
+			// 이름과 확장자 합이 너무 크면 고정 컬럼을 표시하지 않음
+			IsFixedVisible = false;
+		}
+
+		var remainWidth = (IsFixedVisible ? width - fixedSize : width) - Size;
+		if (Name + Extension == 0)
+		{
+			// 이름과 확장자가 모두 0인 경우
+			Name = remainWidth;
+		}
+		else if (Name == Extension)
+		{
+			Name = (int)(remainWidth * 0.5f);
+			Extension = remainWidth - Name;
 		}
 		else if (Name < Extension)
 		{
-			remainWidth -= Size;
 			if (Name == 0)
 			{
 				// 가끔 있다. 파일 이름이 없거나 비어있는 경우.
@@ -875,12 +944,10 @@ internal class FileListWidths
 		}
 		else
 		{
-			remainWidth -= Size;
 			if (Extension == 0)
 			{
 				// 가끔 있다. 확장자가 없는 경우.
 				Name = remainWidth;
-				Extension = 0;
 			}
 			else if (Extension < MinExtension)
 			{
@@ -889,8 +956,7 @@ internal class FileListWidths
 			}
 			else
 			{
-				var total = Name + Extension;
-				Name = (int)(remainWidth * (float)Name / total);
+				Name = (int)(remainWidth * (float)Name / (Name + Extension));
 				Extension = remainWidth - Name;
 				if (Extension < MinExtension)
 				{
@@ -900,8 +966,95 @@ internal class FileListWidths
 			}
 		}
 
-		Visible = Name + Extension + Size;
-		return !((Name + Extension) > remainWidth * 1.5);
+		// 드라이브 처리
+		DriveGraph = columns == 1 ? rangeOfDriveGraph.Max : rangeOfDriveGraph.Min;
+		var drvWidth = (columns == 1 ? width - DriveInfo - DriveGraph : width - DriveGraph) + 2;
+		if (DriveName > drvWidth)
+		{
+			// 드라이브 이름이 더 길면 드라이브 너비를 조정
+			DriveName = drvWidth;
+		}
+
+		// 자동 컬럼을 해야하는데 귀찮아서 일단 패스
+		return columns;
+	}
+}
+
+// 파일 리스트 아이템을 그리기 속성 정의 클랫
+internal class FileListDrawProp(Font font, Theme theme)
+{
+	// 선택 마크(화살표) 크기
+	public const int MarkSize = 8;
+	// 아이콘 크기
+	public const int IconSize = 16;
+	// 아이콘 마진
+	public const int IconMargin = 4;
+	// 아이템의 선두 너비
+	public const int LeadingWidth = MarkSize + IconSize + IconMargin;
+
+	// 그려질 영역의 왼쪽
+	public int Left { get; private set; }
+	// 그려질 영역의 윗쪽	 
+	public int Top { get; private set; }
+	// 그려질 영역의 너비
+	public int Width { get; private set; }
+	// 그려질 영역의 높이
+	public int Height { get; private set; }
+	// 기본 너비
+	public int BaseWidth { get; private set; }
+	// 포커스 여부
+	public bool Focused { get; private set; }
+
+	// 글꼴
+	public Font Font { get; } = font;
+	// 테마
+	public Theme Theme { get; } = theme;
+
+	// 그려질 영역
+	public Rectangle Bound => new(Left, Top, Width, Height);
+
+	// 마크가 그려질 영역
+	public Rectangle MarkRect
+	{
+		get
+		{
+			var x = Left + 2;
+			var y = Top + (Height - MarkSize) / 2;
+			return new Rectangle(x, y, MarkSize, MarkSize);
+		}
+	}
+
+	// 아이콘을 그릴 위치
+	public Rectangle IconRect
+	{
+		get
+		{
+			var x = Left + MarkSize + IconMargin / 2;
+			var y = Top + (Height - IconSize) / 2;
+			return new Rectangle(x, y, IconSize, IconSize);
+		}
+	}
+
+	// 너비 설정
+	public void SetWidth(int width) =>
+		Width = width;
+
+	// 기준점 이동
+	public void Advance(int width) =>
+		Left += width;
+
+	// 기준점 최초 이동
+	public void BaseAdvance() =>
+		Left += LeadingWidth;
+
+	// 재 사용
+	public void Reset(Rectangle rect, bool focused)
+	{
+		Left = rect.Left;
+		Top = rect.Top;
+		BaseWidth = Width = rect.Width;
+		Height = rect.Height;
+		Focused = focused;
 	}
 }
 
@@ -910,21 +1063,8 @@ internal class FileListWidths
 /// </summary>
 public abstract class FileListItem
 {
-	/// <summary>선택 마크(화살표) 너비</summary>
-	public const int MarkWidth = 8;
-	/// <summary>아이콘 너비</summary>
-	public const int IconWidth = 16;
-	/// <summary>아이콘 마진</summary>
-	public const int IconMargin = 4;
-	/// <summary>리스트 항목의 선두 너비</summary>
-	public const int LeadingWidth = MarkWidth + IconWidth + IconMargin;
-
 	/// <summary>선택 여부</summary>
 	public bool Selected { get; set; }
-	/// <summary>이름 컬럼 너비</summary>
-	public int NameWidth { get; set; }
-	/// <summary>확장자 컬럼 너비</summary>
-	public int ExtWidth { get; set; }
 	/// <summary>아이콘</summary>
 	public Image? Icon { get; set; }
 	/// <summary>색상</summary>
@@ -932,73 +1072,78 @@ public abstract class FileListItem
 
 	/// <summary>전체 경로</summary>
 	internal abstract string FullName { get; }
-	/// <summary>표시 이름</summary>
-	internal abstract string DisplayName { get; }
-	/// <summary>표시 확장자</summary>
-	internal abstract string DisplayExtension { get; }
 
-	/// <summary>
-	/// Draws the detailed view of a file list item within the specified bounds.
-	/// </summary>
-	/// <remarks>파생 클래스에서 파일 리스트 항목의 상세 그리기 로직을 구현해야 합니다.</remarks>
-	/// <param name="g">그리기에 사용되는 <see cref="Graphics"/> 객체입니다.</param>
-	/// <param name="font">텍스트 렌더링에 사용되는 <see cref="Font"/>입니다.</param>
-	/// <param name="bounds">상세 정보를 그릴 영역을 지정하는 <see cref="Rectangle"/>입니다.</param>
-	/// <param name="widths">상세 정보의 컬럼 너비를 지정하는 <see cref="FileListWidths"/>입니다.</param>
-	/// <param name="theme">상세 정보의 시각적 스타일을 결정하는 <see cref="Theme"/>입니다.</param>
-	/// <param name="focused">항목이 현재 포커스 상태인지 여부입니다. <see langword="true"/>면 포커스됨, 아니면 <see langword="false"/>.</param>
-	internal virtual void Draw(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Theme theme, bool focused)
+	// 아이템을 그립니다.
+	internal virtual void Draw(Graphics g, FileListDrawProp prop, FileListWidths widths)
 	{
-		using (var backBrush = new SolidBrush(focused ? Color : Selected ? theme.BackSelection : theme.BackContent))
-			g.FillRectangle(backBrush, bounds);
+		var background =
+			prop.Focused ? Color :
+			Selected ? prop.Theme.BackSelection : prop.Theme.BackContent;
+		using (var backBrush = new SolidBrush(background))
+			g.FillRectangle(backBrush, prop.Bound);
 
 		if (Selected)
 		{
-			var markRect = new Rectangle(bounds.Left + 2, bounds.Top + (bounds.Height - MarkWidth) / 2, MarkWidth, MarkWidth);
-			DrawRightArrowMark(g, markRect, theme);
+			var rect = prop.MarkRect;
+			var pts = new[]
+			{
+				new Point(rect.Left, rect.Top),
+				new Point(rect.Right, rect.Top + rect.Height / 2),
+				new Point(rect.Left, rect.Bottom)
+			};
+			using var polyBrush = new SolidBrush(prop.Theme.Foreground);
+			g.FillPolygon(polyBrush, pts);
 		}
 
-		var iconX = bounds.Left + MarkWidth + 4;
 		if (Icon != null)
-			g.DrawImage(Icon, iconX, bounds.Top + (bounds.Height - 16) / 2, 16, 16);
+			g.DrawImage(Icon, prop.IconRect);
+
+		prop.BaseAdvance();
 	}
 
-	/// <summary>
-	/// 항목 텍스트를 그립니다.
-	/// </summary>
-	protected static void DrawItemText(Graphics g, string text, Font font, Rectangle bounds, Color color,
-		bool rightAlign = false)
+	// 실제 표시할 텍스트를 얻습니다.
+	private static string GetDisplayText(string input, FileListDrawProp prop)
 	{
-		var drawText = text;
-		var textSize = TextRenderer.MeasureText(drawText, font);
-		if (textSize.Width > bounds.Width)
+		var text = input;
+		var width = TextRenderer.MeasureText(text, prop.Font).Width;
+		if (width > prop.Width)
 		{
-			for (var len = drawText.Length - 1; len > 0; len -= 3)
+			for (var len = text.Length - 1; len > 0; len -= 3)
 			{
-				var t = drawText[..len] + "...";
-				if (TextRenderer.MeasureText(t, font).Width <= bounds.Width)
+				var t = text[..len] + "...";
+				if (TextRenderer.MeasureText(t, prop.Font).Width < prop.Width)
 				{
-					drawText = t;
+					text = t;
 					break;
 				}
 			}
 		}
 
-		var flags = TextFormatFlags.VerticalCenter | (rightAlign ? TextFormatFlags.Right : TextFormatFlags.Left);
-		TextRenderer.DrawText(g, drawText, font, bounds, color, flags);
+		return text;
 	}
 
-	// 선택 화살표 마크 그리기
-	private static void DrawRightArrowMark(Graphics g, Rectangle rect, Theme theme)
+	// 강조 있는 아이템 텍스트를 그립니다.
+	internal void DrawAccentText(Graphics g, FileListDrawProp prop, string text, int width, bool rightAlign = false)
 	{
-		var pts = new[]
-		{
-			new Point(rect.Left, rect.Top),
-			new Point(rect.Right, rect.Top + rect.Height / 2),
-			new Point(rect.Left, rect.Bottom)
-		};
-		using var brush = new SolidBrush(theme.Foreground);
-		g.FillPolygon(brush, pts);
+		prop.SetWidth(width);
+
+		TextRenderer.DrawText(g, GetDisplayText(text, prop), prop.Font, prop.Bound,
+			prop.Focused ? prop.Theme.Focus : Color,
+			TextFormatFlags.VerticalCenter | (rightAlign ? TextFormatFlags.Right : TextFormatFlags.Left));
+
+		prop.Advance(width);
+	}
+
+	// 아이템 텍스트를 그립니다.
+	internal static void DrawText(Graphics g, FileListDrawProp prop, string text, int width, bool rightAlign = false)
+	{
+		prop.SetWidth(width);
+
+		TextRenderer.DrawText(g, GetDisplayText(text, prop), prop.Font, prop.Bound,
+			prop.Focused ? prop.Theme.Focus : prop.Theme.File,
+			TextFormatFlags.VerticalCenter | (rightAlign ? TextFormatFlags.Right : TextFormatFlags.Left));
+
+		prop.Advance(width);
 	}
 }
 
@@ -1015,6 +1160,8 @@ public class FileListFileItem : FileListItem
 	public string Extension { get; }
 	/// <summary>파일 크기</summary>
 	public long Size => Info.Length;
+	/// <summary>마지막 수정일</summary>
+	public DateTime LastWrite => Info.LastWriteTime;
 	/// <summary>생성일</summary>
 	public DateTime Creation => Info.CreationTime;
 	/// <summary>파일 속성</summary>
@@ -1039,33 +1186,48 @@ public class FileListFileItem : FileListItem
 
 	/// <inheritdoc/>
 	internal override string FullName => Info.FullName;
-	/// <inheritdoc/>
-	internal override string DisplayName => FileName;
-	/// <inheritdoc/>
-	internal override string DisplayExtension => Extension;
 
 	/// <inheritdoc/>
-	internal override void Draw(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Theme theme, bool focused)
+	internal override void Draw(Graphics g, FileListDrawProp prop, FileListWidths widths)
 	{
-		base.Draw(g, font, bounds, widths, theme, focused);
+		base.Draw(g, prop, widths);
 
-		var (fileColor, otherColor) = focused ? (theme.BackContent, theme.BackContent) : (Color, theme.Foreground);
-		var x = bounds.Left + LeadingWidth;
-		DrawItemText(g, FileName, font, new Rectangle(x, bounds.Top, widths.Name, bounds.Height), fileColor);
-		x += widths.Name;
-		DrawItemText(g, Extension, font, new Rectangle(x, bounds.Top, widths.Extension, bounds.Height), fileColor);
-		x += widths.Extension;
-		DrawItemText(g, Size.FormatFileSize(), font, new Rectangle(x, bounds.Top, widths.Size, bounds.Height), otherColor, true);
-		x += widths.Size;
+		DrawAccentText(g, prop, FileName, widths.Name);
+		DrawAccentText(g, prop, Extension, widths.Extension);
+		DrawSize(g, prop, widths);
 
 		if (widths.IsFixedVisible)
 		{
-			DrawItemText(g, Creation.FormatRelativeDate(), font, new Rectangle(x, bounds.Top, widths.Date, bounds.Height), otherColor);
-			x += widths.Date;
-			DrawItemText(g, Creation.ToString("HH:mm"), font, new Rectangle(x, bounds.Top, widths.Time, bounds.Height), otherColor);
-			x += widths.Time;
-			DrawItemText(g, Attributes.FormatString(), font, new Rectangle(x, bounds.Top, widths.Attr, bounds.Height), otherColor);
+			DrawText(g, prop, LastWrite.FormatRelativeDate(), widths.Date);
+			DrawText(g, prop, LastWrite.ToString("HH:mm"), widths.Time);
+			DrawText(g, prop, Attributes.FormatString(), widths.Attr);
 		}
+	}
+
+	// 크기만 그리기
+	private void DrawSize(Graphics g, FileListDrawProp prop, FileListWidths widths)
+	{
+		var size = Alter.FormatFileSize(Size, out var suffix);
+		if (string.IsNullOrEmpty(suffix))
+		{
+			DrawText(g, prop, size, widths.Size, true);
+			return;
+		}
+
+		var scolor = prop.Theme.GetColorSize(suffix);
+		var slen = TextRenderer.MeasureText(suffix, prop.Font).Width;
+
+		prop.SetWidth(widths.Size);
+		TextRenderer.DrawText(g, suffix, prop.Font, prop.Bound,
+			prop.Focused ? prop.Theme.Focus : scolor, 
+			TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
+
+		prop.SetWidth(widths.Size - slen + 4);  // 4는 달라 붙는거 같아서 여백을 줄인것
+		TextRenderer.DrawText(g, size, prop.Font, prop.Bound,
+			prop.Focused ? prop.Theme.Focus : prop.Theme.File,
+			TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
+
+		prop.Advance(widths.Size);
 	}
 }
 
@@ -1076,8 +1238,11 @@ public class FileListFolderItem : FileListItem
 {
 	/// <summary>디렉터리 정보</summary>
 	public DirectoryInfo Info { get; }
+
 	/// <summary>디렉터리명</summary>
-	public string DirName { get; }
+	public string DirName => Info.Name;
+	/// <summary>마지막 수정일</summary>
+	public DateTime LastWrite => Info.LastWriteTime;
 	/// <summary>생성일</summary>
 	public DateTime Creation => Info.CreationTime;
 	/// <summary>디렉터리 속성</summary>
@@ -1089,28 +1254,10 @@ public class FileListFolderItem : FileListItem
 	/// 폴더 항목을 생성합니다. 폴더 정보와 관련 속성에 접근할 수 있습니다.
 	/// </summary>
 	/// <param name="dirInfo">디렉터리 정보를 담고 있는 <see cref="DirectoryInfo"/> 객체입니다.</param>
-	public FileListFolderItem(DirectoryInfo dirInfo)
-	{
-		Info = dirInfo;
-
-		DirName = dirInfo.Name;
-		IsParent = false;
-
-		Icon = IconCache.Instance.GetIcon(dirInfo.FullName, string.Empty, true);
-		Color = Settings.Instance.Theme.Folder;
-	}
-
-	/// <summary>
-	/// 디렉터리 항목을 생성합니다. 디렉터리 아이콘과 색상은 테마 설정에 따라 지정됩니다.
-	/// </summary>
-	/// <param name="dirInfo">이 항목에 연결된 디렉터리 정보입니다.</param>
-	/// <param name="dirName">디렉터리 이름입니다.</param>
 	/// <param name="isParent">부모 폴더 여부입니다.</param>
-	public FileListFolderItem(DirectoryInfo dirInfo, string dirName, bool isParent)
+	public FileListFolderItem(DirectoryInfo dirInfo, bool isParent = false)
 	{
 		Info = dirInfo;
-
-		DirName = dirName;
 		IsParent = isParent;
 
 		Icon = IconCache.Instance.GetIcon(dirInfo.FullName, string.Empty, true);
@@ -1119,31 +1266,20 @@ public class FileListFolderItem : FileListItem
 
 	/// <inheritdoc/>
 	internal override string FullName => Info.FullName;
-	/// <inheritdoc/>
-	internal override string DisplayName => DirName;
-	/// <inheritdoc/>
-	internal override string DisplayExtension => string.Empty;
 
 	/// <inheritdoc/>
-	internal override void Draw(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Theme theme, bool focused)
+	internal override void Draw(Graphics g, FileListDrawProp prop, FileListWidths widths)
 	{
-		base.Draw(g, font, bounds, widths, theme, focused);
+		base.Draw(g, prop, widths);
 
-		var (dirColor, otherColor) = focused ? (theme.BackContent, theme.BackContent) : (Color, theme.Foreground);
-		var x = bounds.Left + LeadingWidth;
-		var neWidth = widths.Name + widths.Extension;
-		DrawItemText(g, DirName, font, new Rectangle(x, bounds.Top, neWidth, bounds.Height), dirColor);
-		x += neWidth;
-		DrawItemText(g, "[폴더]", font, new Rectangle(x, bounds.Top, widths.Size, bounds.Height), dirColor, true);
-		x += widths.Size;
+		DrawAccentText(g, prop, IsParent ? ".." : DirName, widths.Name + widths.Extension);
+		DrawAccentText(g, prop, "[폴더]", widths.Size, true);
 
 		if (widths.IsFixedVisible)
 		{
-			DrawItemText(g, Creation.FormatRelativeDate(), font, new Rectangle(x, bounds.Top, widths.Date, bounds.Height), otherColor);
-			x += widths.Date;
-			DrawItemText(g, Creation.ToString("HH:mm"), font, new Rectangle(x, bounds.Top, widths.Time, bounds.Height), otherColor);
-			x += widths.Time;
-			DrawItemText(g, Attributes.FormatString(), font, new Rectangle(x, bounds.Top, widths.Attr, bounds.Height), otherColor);
+			DrawText(g, prop, LastWrite.FormatRelativeDate(), widths.Date);
+			DrawText(g, prop, LastWrite.ToString("HH:mm"), widths.Time);
+			DrawText(g, prop, Attributes.FormatString(), widths.Attr);
 		}
 	}
 }
@@ -1182,21 +1318,22 @@ public class FileListDriveItem : FileListItem
 
 	/// <inheritdoc/>
 	internal override string FullName => Info.Name;
-	/// <inheritdoc/>
-	internal override string DisplayName => VolumeLabel;
-	/// <inheritdoc/>
-	internal override string DisplayExtension => string.Empty;
 
 	/// <inheritdoc/>
-	internal override void Draw(Graphics g, Font font, Rectangle bounds, FileListWidths widths, Theme theme, bool focused)
+	internal override void Draw(Graphics g, FileListDrawProp prop, FileListWidths widths)
 	{
-		base.Draw(g, font, bounds, widths, theme, focused);
+		base.Draw(g, prop, widths);
 
-		var driveColor = focused ? theme.BackContent : Color;
-		var x = bounds.Left + LeadingWidth;
-		var neWidth = widths.Name + widths.Extension;
-		DrawItemText(g, VolumeLabel, font, new Rectangle(x, bounds.Top, neWidth, bounds.Height), driveColor);
+		DrawAccentText(g, prop, VolumeLabel, widths.DriveName);
 		// TODO: 드라이브 용량 그래프 등 추가 가능
+
+		var graphWidth = widths.DriveGraph;
+
+		// 그래프를 그리고 공간이 남으면 드라이브 정보 표시
+		if (prop.Width + widths.DriveInfo < prop.BaseWidth)
+		{
+			
+		}
 	}
 }
 

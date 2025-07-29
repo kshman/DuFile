@@ -62,6 +62,14 @@ internal class Settings
 			)";
 		cmd.ExecuteNonQuery();
 
+		// 크기 색상
+		cmd.CommandText = @"
+			CREATE TABLE IF NOT EXISTS ColorSize (
+				size TEXT UNIQUE PRIMARY KEY NOT NULL,
+				color TEXT NOT NULL
+			)";
+		cmd.ExecuteNonQuery();
+
 		// 드라이브 이력
 		cmd.CommandText = @"
 			CREATE TABLE IF NOT EXISTS HistoryDrive (
@@ -105,6 +113,18 @@ internal class Settings
 				var ext = colorRdr.GetString(0);
 				if (uint.TryParse(colorRdr.GetString(1), NumberStyles.HexNumber, null, out var result))
 					Theme.ColorExtension[ext] = Color.FromArgb(unchecked((int)(result | 0xFF000000)));
+			}
+		}
+
+		// 크기 색상
+		cmd.CommandText = "SELECT size, color FROM ColorSize";
+		using (var sizeRdr = cmd.ExecuteReader())
+		{
+			while (sizeRdr.Read())
+			{
+				var size = sizeRdr.GetString(0);
+				if (uint.TryParse(sizeRdr.GetString(1), NumberStyles.HexNumber, null, out var result))
+					Theme.ColorSize[size] = Color.FromArgb(unchecked((int)(result | 0xFF000000)));
 			}
 		}
 

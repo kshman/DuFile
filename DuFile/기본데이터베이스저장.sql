@@ -1,3 +1,12 @@
+insert or replace into ColorSize (size, color) values ('KB', '636370');
+insert or replace into ColorSize (size, color) values ('MB', 'FF0000');
+insert or replace into ColorSize (size, color) values ('GB', '8080FF');
+insert or replace into ColorSize (size, color) values ('TB', 'FFFF00');
+insert or replace into ColorSize (size, color) values ('PB', 'FF0000');
+insert or replace into ColorSize (size, color) values ('EB', 'FF0000');
+insert or replace into ColorSize (size, color) values ('ZB', 'FF0000');
+insert or replace into ColorSize (size, color) values ('YB', 'FF0000');
+
 insert or replace into ColorExtension (ext, color) values ('7Z', '808000');
 insert or replace into ColorExtension (ext, color) values ('ACE', '808000');
 insert or replace into ColorExtension (ext, color) values ('ALZ', '808000');
