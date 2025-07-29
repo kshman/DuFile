@@ -237,10 +237,15 @@ public partial class MainForm
 	}
 
 	// 파일 실행
-	public void ExcuteProcess(FileInfo? info, string? arguments = null)
+	public void ExcuteProcess(string fileName, string? arguments = null)
 	{
-		if (info == null)
+		if (string.IsNullOrEmpty(fileName))
 			return;
+
+		var info = new FileInfo(fileName);
+		if (!info.Exists)
+			return;
+
 		try
 		{
 			var (shell, args, directory) = arguments is null

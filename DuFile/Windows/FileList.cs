@@ -878,7 +878,7 @@ internal class FileListWidths
 				}
 				case FileListDriveItem driveItem:
 				{
-					len = TextRenderer.MeasureText(driveItem.VolumeLabel, font).Width + 2;
+					len = TextRenderer.MeasureText(driveItem.DisplayName, font).Width + 2;
 					if (len > DriveName) DriveName = len;
 					break;
 				}
@@ -1071,7 +1071,15 @@ public abstract class FileListItem
 	public Color Color { get; set; }
 
 	/// <summary>전체 경로</summary>
-	internal abstract string FullName { get; }
+	public string FullName { get; }
+
+	/// <summary>
+	/// 파일 리스트 아이템을 생성합니다.
+	/// </summary>
+	protected FileListItem(string fullName)
+	{
+		FullName = fullName;
+	}
 
 	// 아이템을 그립니다.
 	internal virtual void Draw(Graphics g, FileListDrawProp prop, FileListWidths widths)
@@ -1152,40 +1160,36 @@ public abstract class FileListItem
 /// </summary>
 public class FileListFileItem : FileListItem
 {
-	/// <summary>파일 정보</summary>
-	public FileInfo Info { get; }
 	/// <summary>파일명</summary>
 	public string FileName { get; }
 	/// <summary>확장자</summary>
 	public string Extension { get; }
 	/// <summary>파일 크기</summary>
-	public long Size => Info.Length;
+	public long Size { get; }
 	/// <summary>마지막 수정일</summary>
-	public DateTime LastWrite => Info.LastWriteTime;
-	/// <summary>생성일</summary>
-	public DateTime Creation => Info.CreationTime;
+	public DateTime LastWrite { get; }
 	/// <summary>파일 속성</summary>
-	public FileAttributes Attributes => Info.Attributes;
+	public FileAttributes Attributes { get; }
 
 	/// <summary>
 	/// 파일 항목을 생성합니다. 파일명, 확장자, 아이콘, 색상 등 정보를 제공합니다.
 	/// </summary>
 	/// <param name="fileInfo">이 파일 항목을 초기화하는 파일 정보입니다.</param>
-	public FileListFileItem(FileInfo fileInfo)
+	public FileListFileItem(FileInfo fileInfo) :
+		base(fileInfo.FullName)
 	{
-		Info = fileInfo;
-
 		var name = fileInfo.Name;
 		var lastDot = name.LastIndexOf('.');
 		FileName = lastDot >= 0 ? name[..lastDot] : name;
 		Extension = lastDot >= 0 ? name[(lastDot + 1)..] : string.Empty;
 
+		Size = fileInfo.Length;
+		LastWrite = fileInfo.LastWriteTime;
+		Attributes = fileInfo.Attributes;
+
 		Icon = IconCache.Instance.GetIcon(fileInfo.FullName, Extension);
 		Color = Settings.Instance.Theme.GetColorExtension(Extension.ToUpperInvariant());
 	}
-
-	/// <inheritdoc/>
-	internal override string FullName => Info.FullName;
 
 	/// <inheritdoc/>
 	internal override void Draw(Graphics g, FileListDrawProp prop, FileListWidths widths)
@@ -1236,17 +1240,12 @@ public class FileListFileItem : FileListItem
 /// </summary>
 public class FileListFolderItem : FileListItem
 {
-	/// <summary>디렉터리 정보</summary>
-	public DirectoryInfo Info { get; }
-
 	/// <summary>디렉터리명</summary>
-	public string DirName => Info.Name;
+	public string DirName { get; }
 	/// <summary>마지막 수정일</summary>
-	public DateTime LastWrite => Info.LastWriteTime;
-	/// <summary>생성일</summary>
-	public DateTime Creation => Info.CreationTime;
+	public DateTime LastWrite { get; }
 	/// <summary>디렉터리 속성</summary>
-	public FileAttributes Attributes => Info.Attributes;
+	public FileAttributes Attributes { get; }
 	/// <summary>부모 폴더 여부</summary>
 	public bool IsParent { get; }
 
@@ -1255,17 +1254,17 @@ public class FileListFolderItem : FileListItem
 	/// </summary>
 	/// <param name="dirInfo">디렉터리 정보를 담고 있는 <see cref="DirectoryInfo"/> 객체입니다.</param>
 	/// <param name="isParent">부모 폴더 여부입니다.</param>
-	public FileListFolderItem(DirectoryInfo dirInfo, bool isParent = false)
+	public FileListFolderItem(DirectoryInfo dirInfo, bool isParent = false) :
+		base(dirInfo.FullName)
 	{
-		Info = dirInfo;
+		DirName = dirInfo.Name;
+		LastWrite = dirInfo.LastWriteTime;
+		Attributes = dirInfo.Attributes;
 		IsParent = isParent;
 
 		Icon = IconCache.Instance.GetIcon(dirInfo.FullName, string.Empty, true);
 		Color = Settings.Instance.Theme.Folder;
 	}
-
-	/// <inheritdoc/>
-	internal override string FullName => Info.FullName;
 
 	/// <inheritdoc/>
 	internal override void Draw(Graphics g, FileListDrawProp prop, FileListWidths widths)
@@ -1289,42 +1288,47 @@ public class FileListFolderItem : FileListItem
 /// </summary>
 public class FileListDriveItem : FileListItem
 {
-	/// <summary>드라이브 정보</summary>
-	public DriveInfo Info { get; }
+	/// <summary>표시 이름</summary>
+	public string DisplayName { get; }
 	/// <summary>드라이브명</summary>
 	public string DriveName { get; }
 	/// <summary>볼륨 라벨</summary>
 	public string VolumeLabel { get; }
 	/// <summary>전체 크기</summary>
-	public long Total => Info.TotalSize;
+	public long Total { get; }
 	/// <summary>사용 가능 크기</summary>
-	public long Available => Info.AvailableFreeSpace;
+	public long Available { get; }
+	/// <summary>드라이브 유형</summary>
+	public DriveType Type { get; }
+	/// <summary>드라이브 포맷</summary>
+	public string Format { get; }
 
 	/// <summary>
 	/// 드라이브 항목을 생성합니다. 드라이브명, 볼륨 라벨, 아이콘, 색상 등을 설정합니다.
 	/// </summary>
 	/// <remarks>드라이브명과 볼륨 라벨을 추출 및 포맷하고, 아이콘과 테마 색상을 적용합니다.</remarks>
 	/// <param name="driveInfo">드라이브 정보를 초기화에 사용합니다.</param>
-	public FileListDriveItem(DriveInfo driveInfo)
+	public FileListDriveItem(DriveInfo driveInfo) : 		
+		base(driveInfo.Name)
 	{
-		Info = driveInfo;
-
-		DriveName = driveInfo.Name.TrimEnd('\\');
-		VolumeLabel = $"{DriveName} {driveInfo.VolumeLabel}";
+		DriveName = driveInfo.Name;
+		VolumeLabel = driveInfo.VolumeLabel;
+		DisplayName = $"{DriveName.TrimEnd('\\')} {VolumeLabel}";
+		Total = driveInfo.TotalSize;
+		Available = driveInfo.AvailableFreeSpace;
+		Format = driveInfo.DriveFormat;
+		Type = driveInfo.DriveType;
 
 		Icon = IconCache.Instance.GetIcon(DriveName, string.Empty, false, true);
 		Color = Settings.Instance.Theme.Drive;
 	}
 
 	/// <inheritdoc/>
-	internal override string FullName => Info.Name;
-
-	/// <inheritdoc/>
 	internal override void Draw(Graphics g, FileListDrawProp prop, FileListWidths widths)
 	{
 		base.Draw(g, prop, widths);
 
-		DrawAccentText(g, prop, VolumeLabel, widths.DriveName);
+		DrawAccentText(g, prop, DisplayName, widths.DriveName);
 
 		// 드라이브 용량 그래프 그리기
 		if (Total > 0)

@@ -467,30 +467,27 @@ public class FilePanel : UserControl, IThemeUpate
 				fileInfoLabel.Text = "(선택한 파일이 없어요)";
 				break;
 			}
-			case FileListFileItem fileItem:
+			case FileListFileItem fi:
 			{
-				var fi = fileItem.Info;
-				fileInfoLabel.Text = $"{fi.Length:N0} | {fi.CreationTime} | {fi.Attributes.FormatString()} | {fi.Name}";
+				fileInfoLabel.Text = $"{fi.Size:N0} | {fi.LastWrite} | {fi.Attributes.FormatString()} | {fi.FileName}";
 				break;
 			}
-			case FileListFolderItem dirItem:
+			case FileListFolderItem di:
 			{
-				var di = dirItem.Info;
-				fileInfoLabel.Text = $"폴더 | {di.CreationTime} | {di.Attributes.FormatString()} | {di.Name}";
+				fileInfoLabel.Text = $"폴더 | {di.LastWrite} | {di.Attributes.FormatString()} | {di.DirName}";
 				break;
 			}
-			case FileListDriveItem driveItem:
+			case FileListDriveItem vi:
 			{
-				var di = driveItem.Info;
-				fileInfoLabel.Text = di.DriveType switch
+				fileInfoLabel.Text = vi.Type switch
 				{
 					DriveType.Fixed or DriveType.Ram =>
-						$"{di.VolumeLabel} ({di.Name.TrimEnd('\\')}) | {di.DriveFormat} 디스크 | {di.AvailableFreeSpace.FormatFileSize()} 남음 / {di.TotalSize.FormatFileSize()}",
+						$"{vi.VolumeLabel} ({vi.DriveName}) | {vi.Format} 디스크 | {vi.Available.FormatFileSize()} 남음 / {vi.Total.FormatFileSize()}",
 					DriveType.Removable =>
-						$"{di.VolumeLabel} ({di.Name.TrimEnd('\\')}) | {di.DriveFormat} 이동식 디스크 | {di.AvailableFreeSpace.FormatFileSize()} 남음 / {di.TotalSize.FormatFileSize()}",
-					DriveType.Network => $"{di.VolumeLabel} ({di.Name.TrimEnd('\\')}) | 네트워크 드라이브",
-					DriveType.CDRom => $"{di.VolumeLabel} ({di.Name.TrimEnd('\\')}) | 광 디스크",
-					_ => $"{di.VolumeLabel} ({di.Name.TrimEnd('\\')}) | 알 수 없는 드라이브"
+						$"{vi.VolumeLabel} ({vi.DriveName} ) | {vi.Format} 이동식 디스크 | {vi.Available.FormatFileSize()} 남음 / {vi.Total.FormatFileSize()}",
+					DriveType.Network => $"{vi.VolumeLabel} ({vi.DriveName}) | 네트워크 드라이브",
+					DriveType.CDRom => $"{vi.VolumeLabel} ({vi.DriveName}) | 광 디스크",
+					_ => $"{vi.VolumeLabel} ({vi.DriveName}) | 알 수 없는 드라이브"
 				};
 				break;
 			}
@@ -504,25 +501,16 @@ public class FilePanel : UserControl, IThemeUpate
 		{
 			case null:
 				break;
-			case FileListFileItem fileItem:
-			{
-				var fi = fileItem.Info;
-				MainForm?.ExcuteProcess(fi);
+			case FileListFileItem fi:
+				MainForm?.ExcuteProcess(fi.FullName);
 				break;
-			}
-			case FileListFolderItem dirItem:
-			{
-				var di = dirItem.Info;
+			case FileListFolderItem di:
 				NavigateTo(di.FullName, fileList.FullName);
 				break;
-			}
-			case FileListDriveItem driveItem:
-			{
-				var di = driveItem.Info;
-				var path = Settings.Instance.GetDriveHistory(di.Name);
+			case FileListDriveItem vi:
+				var path = Settings.Instance.GetDriveHistory(vi.DriveName);
 				NavigateTo(path);
 				break;
-			}
 		}
 	}
 
