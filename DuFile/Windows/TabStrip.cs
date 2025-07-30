@@ -21,6 +21,8 @@ public class TabStrip : ThemeControl
 	private int _scrollButtonWidth = 22;
 	// 스크롤 버튼 표시 여부
 	private bool _showScrollButtons;
+	// 활성 상태 여부
+	private bool _isActive;
 
 	// 현재 선택된 탭 인덱스
 	private int _selectedIndex = -1;
@@ -120,6 +122,21 @@ public class TabStrip : ThemeControl
 				Invalidate();
 				SelectedIndexChanged?.Invoke(this, new TabStripIndexChangedEventArgs(prevIndex, value));
 			}
+		}
+	}
+
+	/// <summary>
+	/// 현재 컨트롤이 활성 상태인지 가져오거나 설정합니다.
+	/// </summary>
+	[Browsable(false)]
+	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+	public bool IsActive
+	{
+		get => _isActive;
+		set
+		{
+			_isActive = value;
+			Invalidate();
 		}
 	}
 
@@ -323,11 +340,10 @@ public class TabStrip : ThemeControl
 			var tabRect = new Rectangle(x, 2, tabWidth, Height - 4);
 			tab.Bounds = tabRect;
 
-			var tabBrush =
-				i == _selectedIndex ? new SolidBrush(theme.BackSelection) :
-				i == _hoverTabIndex ? new SolidBrush(theme.BackContent) :
-				new SolidBrush(theme.Background);
-			using (tabBrush)
+			var tabBack =
+				i == _selectedIndex ? _isActive ? theme.BackWindowActive : theme.BackSelection :
+				i == _hoverTabIndex ? theme.BackContent : theme.Background;
+			using (var tabBrush = new SolidBrush(tabBack))
 				e.Graphics.FillRectangle(tabBrush, tabRect);
 
 			ControlPaint.DrawBorder(e.Graphics, tabRect, theme.Border, ButtonBorderStyle.Solid);
@@ -360,7 +376,7 @@ public class TabStrip : ThemeControl
 			);
 			tab.CloseButtonBounds = closeRect;
 
-			if (i == _selectedIndex && Tabs.Count > 1)
+			if (_isActive && i == _selectedIndex && Tabs.Count > 1)
 			{
 				using (var closeBrush = new SolidBrush(theme.Accelerator))
 					e.Graphics.FillEllipse(closeBrush, closeRect);

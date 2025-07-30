@@ -311,34 +311,6 @@ internal class Settings
 		set => SetBool("CharCase", value);
 	}
 
-#if false
-	// 글꼴 관련 기능은 테마 설정으로 옮김
-	public string UiFontFamily
-	{
-		get => GetString("UiFontFamily", "맑은 고딕");
-		set => SetString("UiFontFamily", value);
-	}
-
-	public float UiFontSize
-	{
-		get => GetFloat("UiFontSize", 10f);
-		set => SetFloat("UiFontSize", value);
-	}
-
-	public string FileFontFamily
-	{
-		// "맑은 고딕" "세종글꽃체"
-		get => GetString("FileFontFamily", "맑은 고딕");
-		set => SetString("FileFontFamily", value);
-	}
-
-	public float FileFontSize
-	{
-		get => GetFloat("FileFontSize", 10f);
-		set => SetFloat("FileFontSize", value);
-	}
-#endif
-
 	public int SortOrder
 	{
 		get => GetInt("SortOrder"); // 0: 이름, 1: 확장자, 2: 크기, 3: 시간, 4: 속성, 5: 색상
@@ -415,54 +387,6 @@ internal class Settings
 	{
 		get => GetInt("ActivePanel", 1); // 1: left, 2: right
 		set => SetInt("ActivePanel", value);
-	}
-
-	public int LeftActiveTab
-	{
-		get => GetInt("Panel1Active");
-		set => SetInt("Panel1Active", value);
-	}
-
-	public int RightActiveTab
-	{
-		get => GetInt("Panel2Active");
-		set => SetInt("Panel2Active", value);
-	}
-
-	public void SetLeftTabs(IEnumerable<string> tabs) =>
-		SetString("Panel1Tabs", string.Join("|", tabs));
-
-	public void SetRightTabs(IEnumerable<string> tabs) =>
-		SetString("Panel2Tabs", string.Join("|", tabs));
-
-	public IEnumerable<string> GetLeftTabs()
-	{
-		var tabs = GetString("Panel1Tabs", string.Empty);
-		return string.IsNullOrEmpty(tabs) ? [] : tabs.Split('|', StringSplitOptions.RemoveEmptyEntries);
-	}
-
-	public IEnumerable<string> GetRightTabs()
-	{
-		var tabs = GetString("Panel2Tabs", string.Empty);
-		return string.IsNullOrEmpty(tabs) ? [] : tabs.Split('|', StringSplitOptions.RemoveEmptyEntries);
-	}
-
-	public void SetLeftHistory(IEnumerable<string> history) =>
-		SetString("Panel1History", string.Join("|", history));
-
-	public void SetRightHistory(IEnumerable<string> history) =>
-		SetString("Panel2History", string.Join("|", history));
-
-	public IEnumerable<string> GetLeftHistory()
-	{
-		var history = GetString("Panel1History", string.Empty);
-		return string.IsNullOrEmpty(history) ? [] : history.Split('|', StringSplitOptions.RemoveEmptyEntries);
-	}
-
-	public IEnumerable<string> GetRightHistory()
-	{
-		var history = GetString("Panel2History", string.Empty);
-		return string.IsNullOrEmpty(history) ? [] : history.Split('|', StringSplitOptions.RemoveEmptyEntries);
 	}
 
 	public string GetDriveHistory(string drive) =>

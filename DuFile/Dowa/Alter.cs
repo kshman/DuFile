@@ -110,9 +110,6 @@ internal static class Alter
 	}
 
 	// Win32 CompareStringEx P/Invoke 선언
-	private const uint NORM_IGNORECASE = 0x00000001;
-	private const uint SORT_DIGITSASNUMBERS = 0x00000008;
-
 #pragma warning disable SYSLIB1054
 	[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
 	private static extern int CompareStringEx(
@@ -121,6 +118,9 @@ internal static class Alter
 		string lpString2, int cchCount2,
 		IntPtr lpVersionInformation, IntPtr lpReserved, int lParam);
 #pragma warning restore SYSLIB1054
+
+	private const uint NORM_IGNORECASE = 0x00000001;
+	private const uint SORT_DIGITSASNUMBERS = 0x00000008;
 
 	// 자연스러운 파일명 비교 (Windows 탐색기와 동일)
 	public static int CompareNatualFilename(string? left, string? right)

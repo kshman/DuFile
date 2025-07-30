@@ -19,6 +19,8 @@ public sealed class FileList : ThemeControl
 	private bool _updating;
 	// 레이아웃 재계산 필요 여부
 	private bool _needRefresh;
+	// 활성화 상태
+	private bool _isActive;
 
 	// 현재 포커스된 항목 인덱스
 	private int _focusedIndex = -1;
@@ -114,6 +116,23 @@ public sealed class FileList : ThemeControl
 		}
 	}
 
+	/// <summary>
+	/// 현재 컨트롤이 활성 상태인지 가져오거나 설정합니다.
+	/// </summary>
+	[Browsable(false)]
+	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+	public bool IsActive
+	{
+		get => _isActive;
+		set
+		{
+			_isActive = value;
+			if (value)
+				Focus();
+			Invalidate();
+		}
+	}
+
 	/// <summary>포커스 인덱스 변경 이벤트입니다.</summary>
 	[Category("FileList")]
 	public event EventHandler? FocusedIndexChanged;
@@ -181,7 +200,7 @@ public sealed class FileList : ThemeControl
 		}
 
 		PrepareIndex();
-		var prop = new FileListDrawProp(Font, theme);
+		var prop = new FileListDrawProp(Font, theme, _isActive);
 		var first = _firstIndex;
 		var count = _lastIndex - first + 1;
 		for (var i = 0; i < count; i++)
@@ -502,9 +521,7 @@ public sealed class FileList : ThemeControl
 		_updating = false;
 		_anchorIndex = -1;
 		EnsureIndex(FocusedIndex = Items.Count > 0 ? 0 : -1);
-
-		var settings = Settings.Instance;
-		Sort(settings.SortOrder, settings.SortDescending);
+		Sort();
 
 		_needRefresh = true;
 		Invalidate();
@@ -748,7 +765,7 @@ public sealed class FileList : ThemeControl
 		_rows = (count + _columns - 1) / _columns;
 		_viewHeight = size.Height - SbSize;
 
-		_itemHeight = fontHeight + 6;
+		_itemHeight = fontHeight + 4;
 		_itemWidth = (size.Width - 4) / _columns;
 
 		_viewRows = Math.Max(1, _viewHeight / _itemHeight);
@@ -805,6 +822,17 @@ public sealed class FileList : ThemeControl
 		var left = indPos + _sbTrackRange.Left;
 		var right = left + _sbIndWidth;
 		_sbIndRange = new MinMax(left, right);
+	}
+
+	/// <summary>
+	/// Sorts the collection based on the current settings.
+	/// </summary>
+	/// <remarks>This method sorts the collection using the sort order and direction specified in the application's
+	/// settings. It retrieves the sort configuration from a singleton instance of the <c>Settings</c> class.</remarks>
+	public void Sort()
+	{
+		var settings = Settings.Instance;
+		Sort(settings.SortOrder, settings.SortDescending);
 	}
 
 	/// <summary>
@@ -1110,7 +1138,7 @@ internal class FileListWidths
 }
 
 // 파일 리스트 아이템을 그리기 속성 정의 클랫
-internal class FileListDrawProp(Font font, Theme theme)
+internal class FileListDrawProp(Font font, Theme theme, bool isActive)
 {
 	// 선택 마크(화살표) 크기
 	public const int MarkSize = 8;
@@ -1138,6 +1166,8 @@ internal class FileListDrawProp(Font font, Theme theme)
 	public Font Font { get; } = font;
 	// 테마
 	public Theme Theme { get; } = theme;
+	// 활성 상태
+	public bool IsActive { get; } = isActive;
 
 	// 그려질 영역
 	public Rectangle Bound => new(Left, Top, Width, Height);
@@ -1216,8 +1246,19 @@ public abstract class FileListItem
 		var background =
 			prop.Focused ? Color :
 			Selected ? prop.Theme.BackSelection : prop.Theme.BackContent;
-		using (var backBrush = new SolidBrush(background))
-			g.FillRectangle(backBrush, prop.Bound);
+
+		if (prop.IsActive)
+		{
+			using var brush = new SolidBrush(background);
+			g.FillRectangle(brush, prop.Bound);
+		}
+		else
+		{
+			using var brush = new SolidBrush(Color.FromArgb(30, background));
+			using var pen = new Pen(Color.FromArgb(120, background));
+			g.FillRectangle(brush, prop.Bound);
+			g.DrawRectangle(pen, new Rectangle(prop.Left, prop.Top, prop.Width - 1, prop.Height - 1));
+		}
 
 		if (Selected)
 		{
@@ -1265,19 +1306,19 @@ public abstract class FileListItem
 		prop.SetWidth(width);
 
 		TextRenderer.DrawText(g, GetDisplayText(text, prop), prop.Font, prop.Bound,
-			prop.Focused ? prop.Theme.Focus : Color,
+			prop is { Focused: true, IsActive: true } ? prop.Theme.Focus : Color,
 			TextFormatFlags.VerticalCenter | (rightAlign ? TextFormatFlags.Right : TextFormatFlags.Left));
 
 		prop.Advance(width);
 	}
 
 	// 아이템 텍스트를 그립니다.
-	internal static void DrawText(Graphics g, FileListDrawProp prop, string text, int width, bool rightAlign = false)
+	internal void DrawText(Graphics g, FileListDrawProp prop, string text, int width, bool rightAlign = false)
 	{
 		prop.SetWidth(width);
 
 		TextRenderer.DrawText(g, GetDisplayText(text, prop), prop.Font, prop.Bound,
-			prop.Focused ? prop.Theme.Focus : prop.Theme.File,
+			prop.Focused ? !prop.IsActive ? Color : prop.Theme.Focus : prop.Theme.File,
 			TextFormatFlags.VerticalCenter | (rightAlign ? TextFormatFlags.Right : TextFormatFlags.Left));
 
 		prop.Advance(width);
@@ -1352,12 +1393,12 @@ public class FileListFileItem : FileListItem
 
 		prop.SetWidth(widths.Size);
 		TextRenderer.DrawText(g, suffix, prop.Font, prop.Bound,
-			prop.Focused ? prop.Theme.Focus : scolor,
+			prop.Focused ? !prop.IsActive ? Color : prop.Theme.Focus : scolor,
 			TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
 
 		prop.SetWidth(widths.Size - slen + 4);  // 4는 달라 붙는거 같아서 여백을 줄인것
 		TextRenderer.DrawText(g, size, prop.Font, prop.Bound,
-			prop.Focused ? prop.Theme.Focus : prop.Theme.File,
+			prop.Focused ? !prop.IsActive ? Color : prop.Theme.Focus : prop.Theme.File,
 			TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
 
 		prop.Advance(widths.Size);

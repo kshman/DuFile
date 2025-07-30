@@ -10,6 +10,7 @@ public class Theme
 	public Color BackHover { get; set; } = Color.FromArgb(0, 122, 204);
 	public Color BackActive { get; set; } = Color.FromArgb(0, 150, 136);
 	public Color BackSelection { get; set; } = Color.FromArgb(63, 63, 70);
+	public Color BackWindowActive { get; set; } = Color.FromArgb(0, 90, 180);
 	public Color BackContent { get; set; } = Color.FromArgb(20, 20, 20);
 
 	public Color Foreground { get; set; } = Color.FromArgb(241, 241, 241);

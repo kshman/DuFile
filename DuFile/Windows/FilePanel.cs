@@ -13,7 +13,7 @@ public class FilePanel : UserControl, IThemeUpate
 #nullable disable
 	private TabStrip tabStrip;
 	private Label fileInfoLabel;
-	private EkePanel workPanel;
+	private Panel workPanel;
 	private Panel dirPanel;
 	private BreadcrumbPath breadcrumbPath;
 	private TextBox pathTextBox;
@@ -26,7 +26,7 @@ public class FilePanel : UserControl, IThemeUpate
 #nullable restore
 
 	private DirectoryInfo? _current;
-	private bool _isActivePanel;
+	private bool _isActive;
 	private bool _isEditPathMode;
 	private bool _tabLoaded;
 	private List<string> _history = [];
@@ -57,7 +57,7 @@ public class FilePanel : UserControl, IThemeUpate
 	{
 		tabStrip = new TabStrip();
 		fileInfoLabel = new Label();
-		workPanel = new EkePanel();
+		workPanel = new Panel();
 		fileList = new FileList();
 		infoPanel = new Panel();
 		pathLabel = new PathLabel();
@@ -104,9 +104,7 @@ public class FilePanel : UserControl, IThemeUpate
 		// 
 		// workPanel
 		// 
-		workPanel.BorderColor = Color.Gray;
 		workPanel.BorderStyle = BorderStyle.FixedSingle;
-		workPanel.BorderThickness = 1;
 		workPanel.Controls.Add(fileList);
 		workPanel.Controls.Add(infoPanel);
 		workPanel.Controls.Add(dirPanel);
@@ -633,11 +631,17 @@ public class FilePanel : UserControl, IThemeUpate
 	public void SetActivePanel(bool isActive)
 	{
 		// TODO: 먼저 이벤트를 보내고 그담에 상태를 바꿔야 할까?
-		if (_isActivePanel)
+		if (_isActive == isActive)
 			return;
 
-		_isActivePanel = isActive;
-		workPanel.BorderColor = isActive ? Settings.Instance.Theme.BackHover : Settings.Instance.Theme.Border;
+		if (isActive)
+			ActiveControl = fileList; 
+		
+		_isActive = isActive;
+		fileList.IsActive = isActive;
+		pathLabel.IsActive = isActive;
+		tabStrip.IsActive = isActive;
+
 		PanelActivated?.Invoke(this, new FilePanelActiveEventArgs(this, isActive));
 	}
 
@@ -754,6 +758,10 @@ public class FilePanel : UserControl, IThemeUpate
 				}
 			}
 		}
+
+		// 액티브
+		if (settings.ActivePanel == PanelIndex)
+			SetActivePanel(true);
 	}
 
 	// 탭 목록 저장. Dispose에서 호출된다.

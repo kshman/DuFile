@@ -141,7 +141,7 @@ public sealed class PathLabel : ThemeControl
 
 		var theme = Settings.Instance.Theme;
 		var g = e.Graphics;
-		g.Clear(IsActive ? theme.BackHover : theme.BackContent);
+		g.Clear(IsActive ? theme.BackWindowActive : theme.BackContent);
 
 		const string LeftFolder = "폴더, ";
 		const string LeftFile = "파일 ";
