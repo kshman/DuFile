@@ -615,6 +615,16 @@ public class FilePanel : UserControl, IThemeUpate
 	}
 
 	/// <summary>
+	/// 다시 한번 현재 디렉터리로 이동합니다.
+	/// </summary>
+	public void NavigateAgain()
+	{
+		var index = fileList.FocusedIndex;
+		NavigateTo(_current);
+		fileList.FocusedIndex = index;
+	}
+
+	/// <summary>
 	/// 지정한 디렉터리로 이동합니다.
 	/// </summary>
 	/// <param name="directory">이동할 디렉터리 경로</param>

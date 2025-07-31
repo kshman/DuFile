@@ -92,9 +92,6 @@ public sealed class LineInputForm : Form
 		PerformLayout();
 	}
 
-	public static string RunDialog(string title, string prompt, string defaultValue = "")
-	{
-		using var form = new LineInputForm(title, prompt, defaultValue);
-		return form.ShowDialog() == DialogResult.OK ? form.InputText : string.Empty;
-	}
+	// 다이얼로그 띄우기
+	public DialogResult RunDialog() => ShowDialog();
 }

@@ -110,7 +110,12 @@ public sealed class FileList : ThemeControl
 		{
 			if (_focusedIndex == value)
 				return;
-			_focusedIndex = value;
+			if (value < 0)
+				_focusedIndex = 0;
+			else if (value >= Items.Count)
+				_focusedIndex = Items.Count - 1;
+			else
+				_focusedIndex = value;
 			FocusedIndexChanged?.Invoke(this, EventArgs.Empty);
 			Invalidate();
 		}

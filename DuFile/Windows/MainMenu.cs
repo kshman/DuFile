@@ -1,5 +1,4 @@
 ﻿// ReSharper disable MissingXmlDoc
-
 namespace DuFile.Windows;
 
 public partial class MainForm
@@ -97,7 +96,9 @@ public partial class MainForm
 			{ Commands.None, MenuNone },
 			{ Commands.Exit, MenuExit },
 			{ Commands.Open, MenuOpen },
-			{ Commands.OpenWith, MenuOpenWith},
+			{ Commands.OpenWith, MenuOpenWith },
+			{ Commands.Trash, MenuTrash },
+			{ Commands.Delete, MenuDelete },
 			// 계속 추가합시다.
 		};
 
@@ -264,9 +265,53 @@ public partial class MainForm
 			return;
 
 		using var dlg = new LineInputForm("인수와 함께 실행", "실행에 필요한 인수를 입력해주세요.");
-		if (dlg.ShowDialog() != DialogResult.OK)
+		if (dlg.RunDialog() != DialogResult.OK)
 			return;
 
 		ExcuteProcess(name, dlg.InputText);
+	}
+
+	private void MenuTrash()
+	{
+		var files = _activePanel.GetSelectedItems();
+		if (files.Count == 0)
+			return;
+
+		using var mesg = new MesgBoxForm("휴지통으로", $"선택한 {files.Count}개의 항목을 휴지통으로 보낼까요?", files);
+		mesg.UtilText = "삭제(&D)";
+		mesg.DisplayIcon = MessageBoxIcon.Question;
+
+		var ret = mesg.RunDialog();
+		if (ret == DialogResult.Cancel)
+			return;
+
+		using var dlg = new DeleteForm("파일 삭제", files);
+		dlg.TrashMode = ret != DialogResult.Yes; // Yes면 바로 삭제, 아니면 휴지통으로 이동
+		dlg.RunDialog();
+
+		_activePanel.NavigateAgain();
+		_activePanel.Refresh();
+	}
+
+	private void MenuDelete()
+	{
+		var files = _activePanel.GetSelectedItems();
+		if (files.Count == 0)
+			return;
+
+		using var mesg = new MesgBoxForm("파일 삭제", $"선택한 {files.Count}개의 항목을 바로 삭제할까요?", files);
+		mesg.UtilText = "휴지통으로(&T)";
+		mesg.DisplayIcon = MessageBoxIcon.Warning;
+
+		var ret = mesg.RunDialog();
+		if (ret == DialogResult.Cancel)
+			return;
+
+		using var dlg = new DeleteForm("파일 삭제", files);
+		dlg.TrashMode = ret == DialogResult.Yes; // Yes면 휴지통으로 이동, 아니면 바로 삭제
+		dlg.RunDialog();
+
+		_activePanel.NavigateAgain();
+		_activePanel.Refresh();
 	}
 }
