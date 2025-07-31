@@ -271,11 +271,9 @@ public class BreadcrumbPath : ThemeControl
 			return;
 		}
 
-		var idx = GetPartIndexAt(e.Location);
-		if (idx < 0)
-			return;
-
-		PathClick?.Invoke(this, new BreadcrumbPathClickEventArgs(GetDirectoryPath(idx), e.Location, e.Button));
+		var index = GetPartIndexAt(e.Location);
+		var path = index < 0 ? null : GetDirectoryPath(index);
+		PathClick?.Invoke(this, new BreadcrumbPathClickEventArgs(path, e.Location, e.Button));
 	}
 
 	/// <summary>
@@ -312,10 +310,10 @@ public class BreadcrumbPath : ThemeControl
 /// <summary>
 /// Breadcrumb 클릭 이벤트 데이터
 /// </summary>
-public class BreadcrumbPathClickEventArgs(string path, Point location, MouseButtons button) : EventArgs
+public class BreadcrumbPathClickEventArgs(string? path, Point location, MouseButtons button) : EventArgs
 {
 	/// <summary>해당 폴더 경로</summary>
-	public string Path { get; } = path;
+	public string? Path { get; } = path;
 
 	/// <summary>
 	/// 클릭된 위치입니다.

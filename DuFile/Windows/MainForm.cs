@@ -11,7 +11,7 @@ namespace DuFile.Windows;
 /// the text, command, shortcut, and submenus for each menu item.</remarks>
 public partial class MainForm : Form
 {
-	private FilePanel? _activePanel;
+	private FilePanel _activePanel;
 
 	public MainForm()
 	{
@@ -23,6 +23,8 @@ public partial class MainForm : Form
 		KeyPreview = true;
 		leftPanel.MainForm = this;
 		rightPanel.MainForm = this;
+
+		_activePanel = leftPanel;
 	}
 
 	private void ApplyTheme()

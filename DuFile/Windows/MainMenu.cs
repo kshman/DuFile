@@ -7,6 +7,10 @@ public partial class MainForm
 	private readonly Dictionary<string, ToolStripMenuItem> _menuItems = [];
 	private Dictionary<string, Action> _menuActions = [];
 
+	private long _countExecute;
+	private long _countShellContextMenu;
+	private long _countSheelProperties;
+
 	// 메뉴 정의
 	private static readonly MenuDef[] MainMenus =
 	[
@@ -16,7 +20,7 @@ public partial class MainForm
 			SubMenus =
 			[
 				new MenuDef { Text = "열기(&O)", Command = Commands.Open },
-				new MenuDef { Text = "인수와 함께 열기(&W)", Command = Commands.OpenWith, Shortcut = "Ctrl+Return"},
+				new MenuDef { Text = "인수와 함께 열기(&W)", Command = Commands.OpenWith, Shortcut = "Ctrl+Enter"},
 				new MenuDef(),
 				new MenuDef { Text = "휴지통으로(&T)", Command = Commands.Trash, Shortcut = "Delete" },
 				new MenuDef { Text = "바로 지우기(&D)", Command = Commands.Delete, Shortcut = "Shift+Delete" },
@@ -92,6 +96,8 @@ public partial class MainForm
 		{
 			{ Commands.None, MenuNone },
 			{ Commands.Exit, MenuExit },
+			{ Commands.Open, MenuOpen },
+			{ Commands.OpenWith, MenuOpenWith},
 			// 계속 추가합시다.
 		};
 
@@ -187,6 +193,7 @@ public partial class MainForm
 				}
 			};
 			process.Start();
+			_countExecute++;
 		}
 		catch (Exception ex)
 		{
@@ -201,6 +208,7 @@ public partial class MainForm
 		try
 		{
 			ShellContext.ShowMenu(owner, screenPos, files);
+			_countShellContextMenu++;
 		}
 		catch (Exception ex)
 		{
@@ -215,6 +223,7 @@ public partial class MainForm
 		try
 		{
 			ShellContext.ShowProperties(owner, file);
+			_countSheelProperties++;
 		}
 		catch (Exception ex)
 		{
@@ -227,11 +236,37 @@ public partial class MainForm
 	private void MenuNone()
 	{
 		MessageBox.Show("이 기능은 아직 구현되지 않았어요!", "오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+		Debugs.WriteLine($"실행 횟수: {_countExecute}");
+		Debugs.WriteLine($"쉘 컨텍스트 메뉴 호출 횟수: {_countShellContextMenu}");
+		Debugs.WriteLine($"쉘 속성 호출 횟수: {_countSheelProperties}");
 	}
 
 	// 끝내기
 	private void MenuExit()
 	{
 		Close();
+	}
+
+	// 열기
+	private void MenuOpen()
+	{
+		var name = _activePanel.GetFocusedItem();
+		if (string.IsNullOrEmpty(name))
+			return;
+		ExcuteProcess(name);
+	}
+
+	// 인수와 함께 열기
+	private void MenuOpenWith()
+	{
+		var name = _activePanel.GetFocusedItem();
+		if (string.IsNullOrEmpty(name))
+			return;
+
+		using var dlg = new LineInputForm("인수와 함께 실행", "실행에 필요한 인수를 입력해주세요.");
+		if (dlg.ShowDialog() != DialogResult.OK)
+			return;
+
+		ExcuteProcess(name, dlg.InputText);
 	}
 }

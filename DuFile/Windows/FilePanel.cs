@@ -467,8 +467,62 @@ public class FilePanel : UserControl, IThemeUpate
 	// 경로 클릭 이벤트 핸들러
 	private void breadcrumbPath_PathClick(object? sender, BreadcrumbPathClickEventArgs e)
 	{
-		if (e.Button == MouseButtons.Left)
-			NavigateTo(e.Path);
+		switch (e.Button)
+		{
+			case MouseButtons.Left when !string.IsNullOrEmpty(e.Path):
+				NavigateTo(e.Path);
+				break;
+			case MouseButtons.Right:
+			{
+				// 메뉴
+				var menu = new ContextMenuStrip();
+				ToolStripMenuItem item;
+
+				if (!string.IsNullOrEmpty(e.Path))
+				{
+					item = new ToolStripMenuItem(e.Path, null);
+					item.Enabled = false;
+					menu.Items.Add(item);
+
+					menu.Items.Add(new ToolStripSeparator());
+				}
+
+				item = new ToolStripMenuItem("전체 주소 복사", null, (_, _) =>
+				{
+					Clipboard.SetText(breadcrumbPath.Path);
+				});
+				menu.Items.Add(item);
+
+				if (!string.IsNullOrEmpty(e.Path))
+				{
+					item = new ToolStripMenuItem("주소 복사", null, (_, _) =>
+					{
+						Clipboard.SetText(e.Path);
+					});
+					menu.Items.Add(item);
+				}
+
+				item = new ToolStripMenuItem("주소 편집", null, (_, _) =>
+				{
+					EnterPathEditMode();
+				});
+				menu.Items.Add(item);
+
+				if (!string.IsNullOrEmpty(e.Path))
+				{
+					menu.Items.Add(new ToolStripSeparator());
+
+					item = new ToolStripMenuItem("새 탭에서 열기", null, (_, _) =>
+					{
+						AddTab(e.Path, true);
+					});
+					menu.Items.Add(item);
+				}
+
+				menu.Show(breadcrumbPath, e.Location);
+				break;
+			}
+		}
 	}
 
 	// 경로 라벨 속성 클릭 이벤트 핸들러
@@ -825,26 +879,39 @@ public class FilePanel : UserControl, IThemeUpate
 	/// <summary>
 	/// 파일 리스트를 설정에 따라 정렬합니다.
 	/// </summary>
-	public void Sort() => 
+	public void Sort()
+	{
 		fileList.Sort();
+		fileList.Invalidate();
+	}
 
 	/// <summary>
 	/// 선택된 항목의 개수를 반환합니다.
 	/// </summary>
-	public int GetSelectedCount() => 
+	public int GetSelectedCount() =>
 		fileList.GetSelectedCount();
 
 	/// <summary>
 	/// 선택된 파일의 총 크기를 반환합니다.
 	/// </summary>
-	public long GetSelectedSize() => 
+	public long GetSelectedSize() =>
 		fileList.GetSelectedSize();
 
 	/// <summary>
 	/// 선택된 파일 목록을 반환합니다.
 	/// </summary>
-	public List<string> GetSelectedItems() => 
+	public List<string> GetSelectedItems() =>
 		fileList.GetSelectedOrFocused();
+
+	/// <summary>
+	/// 현재 포커스된 항목의 전체 경로를 반환합니다.
+	/// </summary>
+	public string? GetFocusedItem()
+	{
+		var index = fileList.FocusedIndex;
+		var item = fileList.GetItem(index);
+		return item?.FullName;
+	}
 }
 
 /// <summary>
