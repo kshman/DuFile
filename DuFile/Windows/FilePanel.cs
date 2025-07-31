@@ -1,4 +1,6 @@
-﻿namespace DuFile.Windows;
+﻿using Timer = System.Windows.Forms.Timer;
+
+namespace DuFile.Windows;
 
 /// <summary>
 /// 탭 UI를 통해 디렉터리와 파일을 탐색하고 관리하는 사용자 컨트롤입니다.
@@ -30,6 +32,11 @@ public class FilePanel : UserControl, IThemeUpate
 	private bool _isEditPathMode; // 경로 편집 모드 여부
 	private bool _tabLoaded; // 탭 로드 여부
 	private List<string> _history = []; // 디렉터리 이동 이력
+
+	// 와처
+	private readonly FileSystemWatcher _watcher = new();
+	private readonly List<WatcherItem> _watcherItems = [];
+	private readonly Timer _watcherTimer;
 
 	/// <summary>
 	/// 파일 패널의 인덱스입니다.
@@ -63,6 +70,22 @@ public class FilePanel : UserControl, IThemeUpate
 		TabStop = true;
 
 		InitializeComponent();
+
+		// 파일 감시자
+		_watcher.NotifyFilter =
+			NotifyFilters.FileName | NotifyFilters.DirectoryName |
+			NotifyFilters.LastWrite | NotifyFilters.Size;
+		_watcher.Created += _watcher_Created;
+		_watcher.Deleted += _watcher_Deleted;
+		_watcher.Changed += _watcher_Changed;
+		_watcher.Renamed += _watcher_Renamed;
+
+		_watcherTimer = new Timer
+		{
+			Interval = 500,
+			Enabled = false,
+		};
+		_watcherTimer.Tick += _watcherTimer_Tick;
 	}
 
 	// 컨트롤 구성 요소 초기화
@@ -614,6 +637,81 @@ public class FilePanel : UserControl, IThemeUpate
 		}
 	}
 
+	private void _watcher_Created(object sender, FileSystemEventArgs e)
+	{
+		Invoke(() =>
+		{
+			_watcherItems.Add(new WatcherItem(WatcherCommand.Created, e.FullPath));
+			if (_watcherTimer.Enabled)
+				_watcherTimer.Enabled = false;
+			_watcherTimer.Enabled = true;
+		});
+	}
+
+	private void _watcher_Deleted(object sender, FileSystemEventArgs e)
+	{
+		Invoke(() =>
+		{
+			_watcherItems.Add(new WatcherItem(WatcherCommand.Deleted, e.FullPath));
+			if (_watcherTimer.Enabled)
+				_watcherTimer.Enabled = false;
+			_watcherTimer.Enabled = true;
+		});
+	}
+
+	private void _watcher_Changed(object sender, FileSystemEventArgs e)
+	{
+		Invoke(() =>
+		{
+			_watcherItems.Add(new WatcherItem(WatcherCommand.Changed, e.FullPath));
+			if (_watcherTimer.Enabled)
+				_watcherTimer.Enabled = false;
+			_watcherTimer.Enabled = true;
+		});
+	}
+
+	private void _watcher_Renamed(object? sender, RenamedEventArgs e)
+	{
+		Invoke(() =>
+		{
+			_watcherItems.Add(new WatcherItem(WatcherCommand.Renamed, e.FullPath, e.OldFullPath));
+			if (_watcherTimer.Enabled)
+				_watcherTimer.Enabled = false;
+			_watcherTimer.Enabled = true;
+		});
+	}
+
+	// 파일 감시자 타이머 이벤트 핸들러
+	private void _watcherTimer_Tick(object? sender, EventArgs e)
+	{
+		_watcherTimer.Enabled = false;
+		if (_watcherItems.Count == 0)
+			return;
+
+		foreach (var item in _watcherItems)
+		{
+			switch (item.Command)
+			{
+				case WatcherCommand.Created:
+					fileList.AddItem(item.FullPath);
+					break;
+				case WatcherCommand.Deleted:
+					fileList.DeleteItem(item.FullPath);
+					break;
+				case WatcherCommand.Changed:
+					fileList.RefreshItem(item.FullPath);
+					break;
+				case WatcherCommand.Renamed:
+					fileList.RenameItem(item.OldFullPath, item.FullPath);
+					break;
+				default:
+					throw new ArgumentOutOfRangeException(nameof(e));
+			}
+		}
+
+		_watcherItems.Clear();
+	}
+
 	/// <summary>
 	/// 다시 한번 현재 디렉터리로 이동합니다.
 	/// </summary>
@@ -634,6 +732,8 @@ public class FilePanel : UserControl, IThemeUpate
 	{
 		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
 			return false;
+
+		_watcher.EnableRaisingEvents = false;
 
 		var settings = Settings.Instance;
 		var showHidden = settings.ShowHidden;
@@ -709,6 +809,9 @@ public class FilePanel : UserControl, IThemeUpate
 
 		pathLabel.SetFolderInfo(info.FullName, dirCount, fileCount, totalSize);
 		pathLabel.SetDriveInfo(new DriveInfo(info.Root.FullName));
+
+		_watcher.Path = info.FullName;
+		_watcher.EnableRaisingEvents = true;
 
 		return true;
 	}
@@ -921,6 +1024,21 @@ public class FilePanel : UserControl, IThemeUpate
 		var index = fileList.FocusedIndex;
 		var item = fileList.GetItem(index);
 		return item?.FullName;
+	}
+
+	// 와처 멍령 셋
+	internal class WatcherItem
+	{
+		public WatcherCommand Command { get; }
+		public string FullPath { get; }
+		public string OldFullPath { get; }
+
+		public WatcherItem(WatcherCommand command, string fullPath, string oldFullPath = "")
+		{
+			Command = command;
+			FullPath = fullPath;
+			OldFullPath = oldFullPath;
+		}
 	}
 }
 

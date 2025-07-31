@@ -201,6 +201,7 @@ public sealed class FileList : ThemeControl
 			_needRefresh = false;
 			_widths.UpdateName(Items, Font);
 			_widths.AdjustName(_itemWidth, _columns);
+			Sort();
 			RefreshLayout();
 		}
 
@@ -526,7 +527,6 @@ public sealed class FileList : ThemeControl
 		_updating = false;
 		_anchorIndex = -1;
 		EnsureIndex(FocusedIndex = Items.Count > 0 ? 0 : -1);
-		Sort();
 
 		_needRefresh = true;
 		Invalidate();
@@ -581,6 +581,99 @@ public sealed class FileList : ThemeControl
 			_needRefresh = true;
 			Invalidate();
 		}
+	}
+
+	/// <summary>
+	/// 항목을 리스트에 추가합니다.
+	/// </summary>
+	/// <param name="name"></param>
+	/// <param name="moveFocus"></param>
+	public void AddItem(string name, bool moveFocus = false)
+	{
+		FileListItem item;
+		if (File.Exists(name))
+			item = new FileListFileItem(new FileInfo(name));
+		else if (Directory.Exists(name))
+			item = new FileListFolderItem(new DirectoryInfo(name));
+		else
+			return; // 파일이나 폴더가 아닌 경우 추가하지 않음
+
+		AddItem(item);
+
+		if (moveFocus)
+			FocusedIndex = FindIndexByName(name);
+	}
+
+	/// <summary>
+	/// 항목을 삭제합니다.
+	/// </summary>
+	/// <param name="name"></param>
+	public void DeleteItem(string name)
+	{
+		var index = FindIndexByName(name);
+		var item = GetItem(index);
+		if (item == null)
+			return;
+
+		Items.RemoveAt(index);
+
+		_needRefresh = true;
+		Invalidate();
+	}
+
+	/// <summary>
+	/// 아이템 이름 바꾸기
+	/// </summary>
+	/// <param name="oldName"></param>
+	/// <param name="newName"></param>
+	public void RenameItem(string oldName, string newName)
+	{
+		var index = FindIndexByName(oldName);
+		var item = GetItem(index);
+		if (item == null)
+			return;
+
+		switch (item)
+		{
+			case FileListFileItem fi:
+				fi.Renew(new FileInfo(newName));
+				break;
+			case FileListFolderItem di:
+				di.Renew(new DirectoryInfo(newName));
+				break;
+			default:
+				return; // 다른 타입은 지원하지 않음
+		}
+
+		_needRefresh = true;
+		Invalidate();
+	}
+
+	/// <summary>
+	/// 아이템 갱신
+	/// </summary>
+	/// <param name="name"></param>
+	public void RefreshItem(string name)
+	{
+		var index = FindIndexByName(name);
+		var item = GetItem(index);
+		if (item == null)
+			return;
+
+		switch (item)
+		{
+			case FileListFileItem fi:
+				fi.Renew(new FileInfo(name));
+				break;
+			case FileListFolderItem di:
+				di.Renew(new DirectoryInfo(name));
+				break;
+			default:
+				return; // 다른 타입은 지원하지 않음
+		}
+
+		_needRefresh = true;
+		Invalidate();
 	}
 
 	/// <summary>
@@ -1335,16 +1428,18 @@ public abstract class FileListItem
 /// </summary>
 public class FileListFileItem : FileListItem
 {
+#nullable disable
 	/// <summary>파일명</summary>
-	public string FileName { get; }
+	public string FileName { get; private set; }
 	/// <summary>확장자</summary>
-	public string Extension { get; }
+	public string Extension { get; private set; }
 	/// <summary>파일 크기</summary>
-	public long Size { get; }
+	public long Size { get; private set; }
 	/// <summary>마지막 수정일</summary>
-	public DateTime LastWrite { get; }
+	public DateTime LastWrite { get; private set; }
 	/// <summary>파일 속성</summary>
-	public FileAttributes Attributes { get; }
+	public FileAttributes Attributes { get; private set; }
+#nullable restore
 
 	/// <summary>
 	/// 파일 항목을 생성합니다. 파일명, 확장자, 아이콘, 색상 등 정보를 제공합니다.
@@ -1352,6 +1447,15 @@ public class FileListFileItem : FileListItem
 	/// <param name="fileInfo">이 파일 항목을 초기화하는 파일 정보입니다.</param>
 	public FileListFileItem(FileInfo fileInfo) :
 		base(fileInfo.FullName)
+	{
+		Renew(fileInfo);
+	}
+
+	/// <summary>
+	/// 파일 항목을 새로 설정합니다.
+	/// </summary>
+	/// <param name="fileInfo"></param>
+	public void Renew(FileInfo fileInfo)
 	{
 		var name = fileInfo.Name;
 		var lastDot = name.LastIndexOf('.');
@@ -1415,14 +1519,16 @@ public class FileListFileItem : FileListItem
 /// </summary>
 public class FileListFolderItem : FileListItem
 {
+#nullable disable
 	/// <summary>디렉터리명</summary>
-	public string DirName { get; }
+	public string DirName { get; private set; }
 	/// <summary>마지막 수정일</summary>
-	public DateTime LastWrite { get; }
+	public DateTime LastWrite { get; private set; }
 	/// <summary>디렉터리 속성</summary>
-	public FileAttributes Attributes { get; }
+	public FileAttributes Attributes { get; private set; }
 	/// <summary>부모 폴더 여부</summary>
 	public bool IsParent { get; }
+#nullable restore
 
 	/// <summary>
 	/// 폴더 항목을 생성합니다. 폴더 정보와 관련 속성에 접근할 수 있습니다.
@@ -1432,11 +1538,19 @@ public class FileListFolderItem : FileListItem
 	public FileListFolderItem(DirectoryInfo dirInfo, bool isParent = false) :
 		base(dirInfo.FullName)
 	{
+		Renew(dirInfo);
+		IsParent = isParent;
+	}
+
+	/// <summary>
+	/// 폴더 항목을 새로 설정합니다. 디렉터리명, 마지막 수정일, 속성 등을 갱신합니다.
+	/// </summary>
+	/// <param name="dirInfo"></param>
+	public void Renew(DirectoryInfo dirInfo)
+	{
 		DirName = dirInfo.Name;
 		LastWrite = dirInfo.LastWriteTime;
 		Attributes = dirInfo.Attributes;
-		IsParent = isParent;
-
 		Icon = IconCache.Instance.GetIcon(dirInfo.FullName, string.Empty, true);
 		Color = Settings.Instance.Theme.Folder;
 	}

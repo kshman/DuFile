@@ -9,3 +9,11 @@ internal enum ModifierKey
 	Control = 2,
 	Alt = 4,
 }
+
+internal enum WatcherCommand
+{
+	Created,
+	Deleted,
+	Changed,
+	Renamed,
+}
