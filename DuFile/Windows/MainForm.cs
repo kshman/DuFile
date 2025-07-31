@@ -11,6 +11,8 @@ namespace DuFile.Windows;
 /// the text, command, shortcut, and submenus for each menu item.</remarks>
 public partial class MainForm : Form
 {
+	private FilePanel? _activePanel;
+
 	public MainForm()
 	{
 		InitializeComponent();
@@ -18,6 +20,7 @@ public partial class MainForm : Form
 		ApplyTheme();
 		ApplySettings();
 
+		KeyPreview = true;
 		leftPanel.MainForm = this;
 		rightPanel.MainForm = this;
 	}
@@ -138,14 +141,14 @@ public partial class MainForm : Form
 		rightPanel.Size = new Size(panelWidth, availableHeight);
 	}
 
-	private void rightPanel_Load(object sender, EventArgs e)
+	private void Panels_Load(object sender, EventArgs e)
 	{
 
 	}
 
-	private void leftPanel_Load(object sender, EventArgs e)
+	private void Panels_PanelActivated(object? sender, FilePanelActiveEventArgs e)
 	{
-
+		_activePanel = e.Panel;
 	}
 
 	private void FuncBarButtonClick(object sender, FuncBarButtonClickEventArgs e)

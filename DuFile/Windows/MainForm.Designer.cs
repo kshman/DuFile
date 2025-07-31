@@ -42,7 +42,7 @@
 			menuStrip.Name = "menuStrip";
 			menuStrip.Size = new Size(800, 24);
 			menuStrip.TabIndex = 0;
-			menuStrip.Text = "menuStrip1";
+			menuStrip.Text = "menuStrip";
 			// 
 			// toolStrip
 			// 
@@ -55,19 +55,16 @@
 			// 
 			// leftPanel
 			// 
-			leftPanel.BackColor = Color.FromArgb(37, 37, 37);
-			leftPanel.ForeColor = Color.FromArgb(241, 241, 241);
 			leftPanel.Location = new Point(0, 24);
 			leftPanel.Name = "leftPanel";
 			leftPanel.PanelIndex = 1;
 			leftPanel.Size = new Size(378, 401);
 			leftPanel.TabIndex = 2;
-			leftPanel.Load += leftPanel_Load;
+			leftPanel.Load += Panels_Load;
+			leftPanel.PanelActivated += Panels_PanelActivated;
 			// 
 			// verticalBar
 			// 
-			verticalBar.BackColor = Color.FromArgb(37, 37, 37);
-			verticalBar.ForeColor = Color.FromArgb(241, 241, 241);
 			verticalBar.Location = new Point(384, 24);
 			verticalBar.Name = "verticalBar";
 			verticalBar.Size = new Size(20, 401);
@@ -75,21 +72,17 @@
 			// 
 			// rightPanel
 			// 
-			rightPanel.BackColor = Color.FromArgb(37, 37, 37);
-			rightPanel.ForeColor = Color.FromArgb(241, 241, 241);
 			rightPanel.Location = new Point(420, 24);
 			rightPanel.Name = "rightPanel";
 			rightPanel.PanelIndex = 2;
 			rightPanel.Size = new Size(380, 401);
 			rightPanel.TabIndex = 4;
-			rightPanel.Load += rightPanel_Load;
+			rightPanel.Load += Panels_Load;
+			rightPanel.PanelActivated += Panels_PanelActivated;
 			// 
 			// funcBar
 			// 
-			funcBar.BackColor = Color.FromArgb(63, 63, 70);
-			funcBar.ButtonHeight = 25;
 			funcBar.Dock = DockStyle.Bottom;
-			funcBar.ForeColor = Color.FromArgb(241, 241, 241);
 			funcBar.Location = new Point(0, 425);
 			funcBar.Name = "funcBar";
 			funcBar.Size = new Size(800, 25);
@@ -108,7 +101,6 @@
 			Controls.Add(leftPanel);
 			Controls.Add(toolStrip);
 			Controls.Add(menuStrip);
-			KeyPreview = true;
 			MainMenuStrip = menuStrip;
 			MinimumSize = new Size(800, 450);
 			Name = "MainForm";

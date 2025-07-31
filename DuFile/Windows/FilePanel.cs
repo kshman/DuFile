@@ -1,50 +1,62 @@
-﻿// ReSharper disable MissingXmlDoc
-namespace DuFile.Windows;
+﻿namespace DuFile.Windows;
 
 /// <summary>
-/// Represents a user control that displays and manages a file panel with tabbed navigation.
+/// 탭 UI를 통해 디렉터리와 파일을 탐색하고 관리하는 사용자 컨트롤입니다.
 /// </summary>
-/// <remarks>The <see cref="FilePanel"/> control provides a tabbed interface for navigating directories and files.
-/// It includes features such as displaying directory information, managing tabs, and handling user interactions through
-/// context menus. The control is designed to be integrated into a larger application where file management is
-/// required.</remarks>
+/// <remarks>
+/// <see cref="FilePanel"/> 컨트롤은 디렉터리 및 파일 탐색을 위한 탭 인터페이스를 제공합니다.
+/// 디렉터리 정보 표시, 탭 관리, 사용자 상호작용(컨텍스트 메뉴 등) 기능을 포함하며,
+/// 파일 관리가 필요한 애플리케이션에 통합되어 사용됩니다.
+/// </remarks>
 public class FilePanel : UserControl, IThemeUpate
 {
 #nullable disable
-	private TabStrip tabStrip;
-	private Label fileInfoLabel;
-	private Panel workPanel;
-	private Panel dirPanel;
-	private BreadcrumbPath breadcrumbPath;
-	private TextBox pathTextBox;
-	private PathLabel pathLabel;
-	private Button historyButton;
-	private Button refreshButton;
-	private Button editDirButton;
-	private Panel infoPanel;
-	private FileList fileList;
+	private TabStrip tabStrip; // 탭 UI 컨트롤
+	private Label fileInfoLabel; // 파일 정보 표시 라벨
+	private Panel workPanel; // 작업 영역 패널
+	private Panel dirPanel; // 디렉터리 패널
+	private BreadcrumbPath breadcrumbPath; // 경로 표시 컨트롤
+	private TextBox pathTextBox; // 경로 입력 텍스트박스
+	private PathLabel pathLabel; // 경로 정보 라벨
+	private Button historyButton; // 히스토리 버튼
+	private Button refreshButton; // 새로고침 버튼
+	private Button editDirButton; // 경로 편집 버튼
+	private Panel infoPanel; // 정보 표시 패널
+	private FileList fileList; // 파일 리스트 컨트롤
 #nullable restore
 
-	private DirectoryInfo? _current;
-	private bool _isActive;
-	private bool _isEditPathMode;
-	private bool _tabLoaded;
-	private List<string> _history = [];
+	private string _current = string.Empty; // 현재 디렉터리 경로
+	private bool _isActive; // 활성화 상태
+	private bool _isEditPathMode; // 경로 편집 모드 여부
+	private bool _tabLoaded; // 탭 로드 여부
+	private List<string> _history = []; // 디렉터리 이동 이력
 
+	/// <summary>
+	/// 파일 패널의 인덱스입니다.
+	/// </summary>
 	[Category("FilePanel")]
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
 	public int PanelIndex { get; set; } = 0;
 
+	/// <summary>
+	/// 패널 활성화 이벤트입니다.
+	/// </summary>
 	[Category("FilePanel")]
 	public event EventHandler<FilePanelActiveEventArgs>? PanelActivated;
 
+	/// <summary>
+	/// 메인 폼 참조입니다.
+	/// </summary>
 	[Browsable(false)]
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 	public MainForm? MainForm { get; set; }
 
-	// 디자인 모드 확인
+	// 디자인 모드 여부 확인
 	private bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
 
+	/// <summary>
+	/// 파일 패널을 초기화합니다.
+	/// </summary>
 	public FilePanel()
 	{
 		SetStyle(ControlStyles.Selectable, true);
@@ -53,6 +65,7 @@ public class FilePanel : UserControl, IThemeUpate
 		InitializeComponent();
 	}
 
+	// 컨트롤 구성 요소 초기화
 	private void InitializeComponent()
 	{
 		tabStrip = new TabStrip();
@@ -245,6 +258,9 @@ public class FilePanel : UserControl, IThemeUpate
 
 	}
 
+	/// <summary>
+	/// 테마를 적용합니다.
+	/// </summary>
 	public void UpdateTheme(Theme theme)
 	{
 		BackColor = theme.Background;
@@ -275,7 +291,7 @@ public class FilePanel : UserControl, IThemeUpate
 		historyButton.FlatAppearance.MouseDownBackColor = theme.BackActive;
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override void Dispose(bool disposing)
 	{
 		if (disposing)
@@ -284,27 +300,28 @@ public class FilePanel : UserControl, IThemeUpate
 		base.Dispose(disposing);
 	}
 
+	/// <inheritdoc/>
 	protected override void OnCreateControl()
 	{
 		base.OnCreateControl();
 		UpdateTheme(Settings.Instance.Theme);
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override void OnLoad(EventArgs e)
 	{
 		base.OnLoad(e);
 		LoadTabs();
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override void OnEnter(EventArgs e)
 	{
 		base.OnEnter(e);
 		SetActivePanel(true);
 	}
 
-	/// <inheritdoc />
+	/// <inheritdoc/>
 	protected override void OnLeave(EventArgs e)
 	{
 		base.OnLeave(e);
@@ -313,11 +330,13 @@ public class FilePanel : UserControl, IThemeUpate
 		SetActivePanel(false);
 	}
 
+	// 탭 닫기 이벤트 핸들러
 	private void tabStrip_CloseClick(object? sender, TabStripCloseClickEventArgs e)
 	{
 		tabStrip.RemoveTabAt(e.Index);
 	}
 
+	// 탭 선택 변경 이벤트 핸들러
 	private void tabStrip_SelectedIndexChanged(object? sender, TabStripIndexChangedEventArgs e)
 	{
 		if (tabStrip.SelectedTab?.Value is string path)
@@ -332,6 +351,7 @@ public class FilePanel : UserControl, IThemeUpate
 		}
 	}
 
+	// 탭 요소 클릭 이벤트 핸들러
 	private void tabStrip_ElementClick(object? sender, TabStripElementClickEventArgs e)
 	{
 		if (e.Element is TabStripElement.Tab or TabStripElement.None)
@@ -385,6 +405,7 @@ public class FilePanel : UserControl, IThemeUpate
 		}
 	}
 
+	// 경로 텍스트박스 키 입력 이벤트 핸들러
 	private void pathTextBox_KeyDown(object? sender, KeyEventArgs e)
 	{
 		if (e.KeyCode == Keys.Enter)
@@ -401,11 +422,13 @@ public class FilePanel : UserControl, IThemeUpate
 		}
 	}
 
+	// 경로 텍스트박스 포커스 해제 이벤트 핸들러
 	private void pathTextBox_LostFocus(object? sender, EventArgs e)
 	{
 		LeavePathEditMode();
 	}
 
+	// 경로 편집 버튼 클릭 이벤트 핸들러
 	private void editDirButton_Click(object? sender, EventArgs e)
 	{
 		if (_isEditPathMode)
@@ -414,9 +437,11 @@ public class FilePanel : UserControl, IThemeUpate
 			EnterPathEditMode();
 	}
 
+	// 새로고침 버튼 클릭 이벤트 핸들러
 	private void refreshButton_Click(object? sender, EventArgs e) =>
 		NavigateTo(breadcrumbPath.Path);
 
+	// 히스토리 버튼 클릭 이벤트 핸들러
 	private void historyButton_Click(object? sender, EventArgs e)
 	{
 		if (_history.Count == 0)
@@ -439,59 +464,50 @@ public class FilePanel : UserControl, IThemeUpate
 		menu.Show(historyButton, new Point(0, historyButton.Height));
 	}
 
+	// 경로 클릭 이벤트 핸들러
 	private void breadcrumbPath_PathClick(object? sender, BreadcrumbPathClickEventArgs e)
 	{
 		if (e.Button == MouseButtons.Left)
 			NavigateTo(e.Path);
 	}
 
+	// 경로 라벨 속성 클릭 이벤트 핸들러
 	private void pathLabel_PropertyClick(object? sender, PathLabelPropertyClickEventArgs e)
 	{
 		MainForm?.ExcuteShowProperties((Control)sender!, e.Path);
 	}
 
+	// 파일 리스트 마우스 다운 이벤트 핸들러
 	private void fileList_MouseDown(object? sender, MouseEventArgs e)
 	{
 		SetActivePanel(true);
 	}
 
+	// 파일 리스트 포커스 변경 이벤트 핸들러
 	private void fileList_FocusedIndexChanged(object? sender, EventArgs e)
 	{
 		var item = fileList.GetItem(fileList.FocusedIndex);
-		switch (item)
+		fileInfoLabel.Text = item switch
 		{
-			case null:
+			null => "(선택한 파일이 없어요)",
+			FileListFileItem fi => $"{fi.Size:N0} | {fi.LastWrite} | {fi.Attributes.FormatString()} | {fi.FileName}",
+			FileListFolderItem di => $"폴더 | {di.LastWrite} | {di.Attributes.FormatString()} | {di.DirName}",
+			FileListDriveItem vi => vi.Type switch
 			{
-				fileInfoLabel.Text = "(선택한 파일이 없어요)";
-				break;
-			}
-			case FileListFileItem fi:
-			{
-				fileInfoLabel.Text = $"{fi.Size:N0} | {fi.LastWrite} | {fi.Attributes.FormatString()} | {fi.FileName}";
-				break;
-			}
-			case FileListFolderItem di:
-			{
-				fileInfoLabel.Text = $"폴더 | {di.LastWrite} | {di.Attributes.FormatString()} | {di.DirName}";
-				break;
-			}
-			case FileListDriveItem vi:
-			{
-				fileInfoLabel.Text = vi.Type switch
-				{
-					DriveType.Fixed or DriveType.Ram =>
-						$"{vi.VolumeLabel} ({vi.Letter}) | {vi.Format} 디스크 | {vi.Available.FormatFileSize()} 남음 / {vi.Total.FormatFileSize()}",
-					DriveType.Removable =>
-						$"{vi.VolumeLabel} ({vi.Letter} ) | {vi.Format} 이동식 디스크 | {vi.Available.FormatFileSize()} 남음 / {vi.Total.FormatFileSize()}",
-					DriveType.Network => $"{vi.VolumeLabel} ({vi.Letter}) | 네트워크 드라이브 | {vi.Available.FormatFileSize()} 남음 / {vi.Total.FormatFileSize()}",
-					DriveType.CDRom => $"{vi.VolumeLabel} ({vi.Letter}) | 광 디스크 | {vi.Total.FormatFileSize()}",
-					_ => $"{vi.VolumeLabel} ({vi.Letter}) | 알 수 없는 드라이브"
-				};
-				break;
-			}
-		}
+				DriveType.Fixed or DriveType.Ram =>
+					$"{vi.VolumeLabel} ({vi.Letter}) | {vi.Format} 디스크 | {vi.Available.FormatFileSize()} 남음 / {vi.Total.FormatFileSize()}",
+				DriveType.Removable =>
+					$"{vi.VolumeLabel} ({vi.Letter} ) | {vi.Format} 이동식 디스크 | {vi.Available.FormatFileSize()} 남음 / {vi.Total.FormatFileSize()}",
+				DriveType.Network =>
+					$"{vi.VolumeLabel} ({vi.Letter}) | 네트워크 드라이브 | {vi.Available.FormatFileSize()} 남음 / {vi.Total.FormatFileSize()}",
+				DriveType.CDRom => $"{vi.VolumeLabel} ({vi.Letter}) | 광 디스크 | {vi.Total.FormatFileSize()}",
+				_ => $"{vi.VolumeLabel} ({vi.Letter}) | 알 수 없는 드라이브"
+			},
+			_ => fileInfoLabel.Text
+		};
 	}
 
+	// 파일 리스트 항목 활성화 이벤트 핸들러
 	private void fileList_ItemActivate(object? sender, EventArgs e)
 	{
 		var item = fileList.GetItem(fileList.FocusedIndex);
@@ -512,6 +528,7 @@ public class FilePanel : UserControl, IThemeUpate
 		}
 	}
 
+	// 파일 리스트 항목 클릭 이벤트 핸들러
 	private void fileList_ItemClicked(object? sender, FileListClickEventArgs e)
 	{
 		if (e.Button == MouseButtons.Right)
@@ -526,14 +543,15 @@ public class FilePanel : UserControl, IThemeUpate
 		}
 	}
 
+	// 파일 리스트 선택 변경 이벤트 핸들러
 	private void fileList_SelectionChanged(object? sender, EventArgs e)
 	{
 		var count = fileList.GetSelectedCount();
 		if (count == 0)
 		{
 			// 선택이 없으면 드라이브 정보
-			var drive = _current == null ? null : new DriveInfo(_current.Root.FullName);
-			pathLabel.SetDriveInfo(drive);
+			var di = new DirectoryInfo(_current);
+			pathLabel.SetDriveInfo(di.Exists ? new DriveInfo(di.Root.FullName) : null);
 		}
 		else
 		{
@@ -542,27 +560,34 @@ public class FilePanel : UserControl, IThemeUpate
 		}
 	}
 
-	public bool NavigateTo(string folder, string? selection = null)
+	/// <summary>
+	/// 지정한 디렉터리로 이동합니다.
+	/// </summary>
+	/// <param name="directory">이동할 디렉터리 경로</param>
+	/// <param name="selection">선택할 항목 이름</param>
+	/// <returns>이동 성공 여부</returns>
+	public bool NavigateTo(string directory, string? selection = null)
 	{
-		if (!string.IsNullOrEmpty(folder) && !Directory.Exists(folder))
+		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
 			return false;
 
 		var settings = Settings.Instance;
 		var showHidden = settings.ShowHidden;
 
-		_current = new DirectoryInfo(folder);
-		breadcrumbPath.Path = folder;
+		_current = directory;
+		breadcrumbPath.Path = directory;
 
-		settings.SetDriveHistory(_current.Root.Name, folder);
+		var info = new DirectoryInfo(directory);
+		settings.SetDriveHistory(info.Name, directory);
 
 		// 이력 갱신
-		_history.Remove(folder); // 중복 제거
-		_history.Add(folder);
+		_history.Remove(directory); // 중복 제거
+		_history.Add(directory);
 		if (_history.Count > 20)
 			_history.RemoveAt(0); // 최대 20개까지만 유지
 
 		// 탭 갱신
-		tabStrip.SetTabTextAt(tabStrip.SelectedIndex, _current.Name, folder);
+		tabStrip.SetTabTextAt(tabStrip.SelectedIndex, info.Name, directory);
 
 		// 리스트 갱신
 		//... 인데 리스트가 없으니 일단 다른것부터
@@ -570,18 +595,18 @@ public class FilePanel : UserControl, IThemeUpate
 		var fileCount = 0;
 		var totalSize = 0L;
 
-		fileList.FullName = _current.FullName;
+		fileList.FullName = info.FullName;
 		fileList.BeginUpdate();
 		fileList.ClearItems();
 
 		try
 		{
 			// 루트 디렉토리가 아니면 ".." 항목을 추가
-			if (_current.Parent is { Exists: true })
-				fileList.AddParentFolder(_current.Parent);
+			if (info.Parent is { Exists: true })
+				fileList.AddParentFolder(info.Parent);
 
 			// 폴더 정보 갱신
-			foreach (var d in _current.GetDirectories())
+			foreach (var d in info.GetDirectories())
 			{
 				if (!showHidden && (d.Attributes & FileAttributes.Hidden) == FileAttributes.Hidden)
 					continue;
@@ -591,7 +616,7 @@ public class FilePanel : UserControl, IThemeUpate
 			}
 
 			// 파일 정보 갱신
-			foreach (var f in _current.GetFiles())
+			foreach (var f in info.GetFiles())
 			{
 				if (!showHidden && (f.Attributes & FileAttributes.Hidden) == FileAttributes.Hidden)
 					continue;
@@ -618,25 +643,24 @@ public class FilePanel : UserControl, IThemeUpate
 		fileList.EndUpdate();
 		fileList.EnsureFocusByName(selection);
 
-		// 폴더 정보
-		pathLabel.SetFolderInfo(_current.FullName, dirCount, fileCount, totalSize);
-
-		// 드라이브 정보
-		var drive = new DriveInfo(_current.Root.FullName);
-		pathLabel.SetDriveInfo(drive);
+		pathLabel.SetFolderInfo(info.FullName, dirCount, fileCount, totalSize);
+		pathLabel.SetDriveInfo(new DriveInfo(info.Root.FullName));
 
 		return true;
 	}
 
+	/// <summary>
+	/// 패널의 활성화 상태를 설정합니다.
+	/// </summary>
+	/// <param name="isActive">활성화 여부</param>
 	public void SetActivePanel(bool isActive)
 	{
-		// TODO: 먼저 이벤트를 보내고 그담에 상태를 바꿔야 할까?
 		if (_isActive == isActive)
 			return;
 
 		if (isActive)
-			ActiveControl = fileList; 
-		
+			ActiveControl = fileList;
+
 		_isActive = isActive;
 		fileList.IsActive = isActive;
 		pathLabel.IsActive = isActive;
@@ -645,7 +669,7 @@ public class FilePanel : UserControl, IThemeUpate
 		PanelActivated?.Invoke(this, new FilePanelActiveEventArgs(this, isActive));
 	}
 
-	// 경로 편집 모드 들어감
+	// 경로 편집 모드로 진입
 	private void EnterPathEditMode()
 	{
 		_isEditPathMode = true;
@@ -657,7 +681,7 @@ public class FilePanel : UserControl, IThemeUpate
 		editDirButton.BackColor = Settings.Instance.Theme.BackActive;
 	}
 
-	// 결로 편집 모드 나감
+	// 경로 편집 모드 종료
 	private void LeavePathEditMode()
 	{
 		_isEditPathMode = false;
@@ -666,26 +690,35 @@ public class FilePanel : UserControl, IThemeUpate
 		editDirButton.BackColor = Settings.Instance.Theme.Background;
 	}
 
-	// 새탭 추가
-	public void AddTab(string? folder, bool force = false)
+	/// <summary>
+	/// 새 탭을 추가합니다.
+	/// </summary>
+	/// <param name="directory">탭에 추가할 디렉터리 경로</param>
+	/// <param name="force">강제로 추가 여부</param>
+	public void AddTab(string? directory, bool force = false)
 	{
-		if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
-			folder = _current is { Exists: true } ? _current.FullName : Settings.Instance.StartFolder;
+		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+		{
+			var info = new DirectoryInfo(_current);
+			directory = info is { Exists: true } ? info.FullName : Settings.Instance.StartFolder;
+		}
 
-		var index = tabStrip.GetTabIndexByValue(folder);
+		var index = tabStrip.GetTabIndexByValue(directory);
 		if (!force && index >= 0)
 		{
 			tabStrip.SelectedIndex = index;
 			return;
 		}
 
-		var di = new DirectoryInfo(folder);
+		var di = new DirectoryInfo(directory);
 		index = tabStrip.AddTab(di.Name, di.FullName);
 		if (index >= 0)
 			tabStrip.SelectedIndex = index;
 	}
 
-	// 다음 탭으로 이동
+	/// <summary>
+	/// 다음 탭으로 이동합니다.
+	/// </summary>
 	public void NextTab()
 	{
 		if (tabStrip.SelectedIndex < tabStrip.Count - 1)
@@ -694,7 +727,9 @@ public class FilePanel : UserControl, IThemeUpate
 			tabStrip.SelectedIndex = 0;
 	}
 
-	// 이전 탭으로 이동
+	/// <summary>
+	/// 이전 탭으로 이동합니다.
+	/// </summary>
 	public void PreviousTab()
 	{
 		if (tabStrip.SelectedIndex > 0)
@@ -703,7 +738,7 @@ public class FilePanel : UserControl, IThemeUpate
 			tabStrip.SelectedIndex = tabStrip.Count - 1;
 	}
 
-	// 탭 목록 읽기. 만들 탭이 없으면 만든다.
+	// 탭 목록을 읽어옵니다. 한 번만 호출 가능합니다.
 	private void LoadTabs()
 	{
 		if (_tabLoaded)
@@ -764,7 +799,7 @@ public class FilePanel : UserControl, IThemeUpate
 			SetActivePanel(true);
 	}
 
-	// 탭 목록 저장. Dispose에서 호출된다.
+	// 탭 목록을 저장합니다. Dispose에서 호출됩니다.
 	private void SaveTabs()
 	{
 		if (IsReallyDesignMode)
@@ -781,11 +816,50 @@ public class FilePanel : UserControl, IThemeUpate
 		settings.SetString($"{prefix}Tabs", tags.Count > 0 ? string.Join("|", tags) : string.Empty);
 		settings.SetString($"{prefix}History", _history.Count > 0 ? string.Join("|", _history) : string.Empty);
 	}
+
+	/// <summary>
+	/// 현재 디렉터리 경로를 반환합니다.
+	/// </summary>
+	public string CurrentDirectory => _current;
+
+	/// <summary>
+	/// 파일 리스트를 설정에 따라 정렬합니다.
+	/// </summary>
+	public void Sort() => 
+		fileList.Sort();
+
+	/// <summary>
+	/// 선택된 항목의 개수를 반환합니다.
+	/// </summary>
+	public int GetSelectedCount() => 
+		fileList.GetSelectedCount();
+
+	/// <summary>
+	/// 선택된 파일의 총 크기를 반환합니다.
+	/// </summary>
+	public long GetSelectedSize() => 
+		fileList.GetSelectedSize();
+
+	/// <summary>
+	/// 선택된 파일 목록을 반환합니다.
+	/// </summary>
+	public List<string> GetSelectedItems() => 
+		fileList.GetSelectedOrFocused();
 }
 
-//
+/// <summary>
+/// 파일 패널의 활성화 이벤트 인자 클래스입니다.
+/// </summary>
+/// <param name="panel">이벤트가 발생한 파일 패널</param>
+/// <param name="isActive">활성화 여부</param>
 public class FilePanelActiveEventArgs(FilePanel panel, bool isActive) : EventArgs
 {
+	/// <summary>
+	/// 이벤트가 발생한 파일 패널입니다.
+	/// </summary>
 	public FilePanel Panel { get; } = panel;
+	/// <summary>
+	/// 패널의 활성화 여부입니다.
+	/// </summary>
 	public bool IsActive { get; } = isActive;
 }
