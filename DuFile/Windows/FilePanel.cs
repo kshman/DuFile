@@ -733,6 +733,7 @@ public class FilePanel : UserControl, IThemeUpate
 		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
 			return false;
 
+		_watcherTimer.Enabled = false;
 		_watcher.EnableRaisingEvents = false;
 
 		var settings = Settings.Instance;
@@ -1027,18 +1028,11 @@ public class FilePanel : UserControl, IThemeUpate
 	}
 
 	// 와처 멍령 셋
-	internal class WatcherItem
+	internal class WatcherItem(WatcherCommand command, string fullPath, string oldFullPath = "")
 	{
-		public WatcherCommand Command { get; }
-		public string FullPath { get; }
-		public string OldFullPath { get; }
-
-		public WatcherItem(WatcherCommand command, string fullPath, string oldFullPath = "")
-		{
-			Command = command;
-			FullPath = fullPath;
-			OldFullPath = oldFullPath;
-		}
+		public WatcherCommand Command { get; } = command;
+		public string FullPath { get; } = fullPath;
+		public string OldFullPath { get; } = oldFullPath;
 	}
 }
 

@@ -99,6 +99,8 @@ public partial class MainForm
 			{ Commands.OpenWith, MenuOpenWith },
 			{ Commands.Trash, MenuTrash },
 			{ Commands.Delete, MenuDelete },
+			{ Commands.Rename, MenuRename },
+			{ Commands.Properties, MenuProperties },
 			// 계속 추가합시다.
 		};
 
@@ -313,5 +315,26 @@ public partial class MainForm
 
 		_activePanel.NavigateAgain();
 		_activePanel.Refresh();
+	}
+
+	private void MenuRename()
+	{
+		var files = _activePanel.GetSelectedItems();
+		if (files.Count == 0)
+			return;
+		
+		using var dlg = new RenameForm(files);
+		dlg.RunDialog();
+
+		_activePanel.NavigateAgain();
+		_activePanel.Refresh();
+	}
+
+	private void MenuProperties()
+	{
+		var name = _activePanel.GetFocusedItem();
+		if (string.IsNullOrEmpty(name))
+			return;
+		ExcuteShowProperties(this, name);
 	}
 }
