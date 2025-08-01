@@ -792,7 +792,7 @@ public class FilePanel : UserControl, IThemeUpate
 		breadcrumbPath.Path = directory;
 
 		var info = new DirectoryInfo(directory);
-		settings.SetDriveHistory(info.Name, directory);
+		settings.SetDriveHistory(info.Root.Name, directory);
 
 		// 이력 갱신
 		_history.Remove(directory); // 중복 제거

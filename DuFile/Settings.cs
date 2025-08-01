@@ -17,9 +17,9 @@ internal class Settings
 
 	public static Settings Instance => _instance ??= new Settings();
 
-	private static string InitialStartFolder => 
+	public static string InitialStartFolder => 
 		Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-	private static string LocalApplicationDataFolder =>
+	public static string LocalApplicationDataFolder =>
 		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
 	private Settings()
@@ -397,5 +397,17 @@ internal class Settings
 		if (string.IsNullOrEmpty(drive) || string.IsNullOrEmpty(path))
 			return;
 		_historyDrive[drive] = path;
+	}
+
+	public string ExternalView
+	{
+		get => GetString("ExternalView", "notepad.exe");
+		set => SetString("ExternalView", value);
+	}
+
+	public string ExternalEdit
+	{
+		get => GetString("ExternalEdit", "notepad.exe");
+		set => SetString("ExternalEdit", value);
 	}
 }

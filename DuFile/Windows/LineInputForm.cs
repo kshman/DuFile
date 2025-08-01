@@ -93,5 +93,5 @@ internal sealed class LineInputForm : Form
 	}
 
 	// 다이얼로그 띄우기
-	public DialogResult RunDialog() => ShowDialog();
+	public DialogResult RunDialog(Form parent) => ShowDialog(parent);
 }

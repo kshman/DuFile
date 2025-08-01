@@ -182,7 +182,7 @@ internal sealed class MesgBoxForm : Form
 		UtilText = util;
 	}
 
-	public DialogResult RunDialog()
+	public DialogResult RunDialog(Form parent)
 	{
 		iconBox.Image = ConvertIcon()?.ToBitmap();
 
@@ -203,6 +203,6 @@ internal sealed class MesgBoxForm : Form
 			utilButton.Enabled = false;
 		}
 
-		return ShowDialog();
+		return ShowDialog(parent);
 	}
 }

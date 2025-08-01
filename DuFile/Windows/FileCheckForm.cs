@@ -21,6 +21,9 @@ internal sealed class FileCheckForm : Form
 	private Label nameLabel;
 #nullable restore
 
+	private string _srcDir = string.Empty;
+	private string _dstDir = string.Empty;
+
 	[Browsable(false)]
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 	public string SourceFile { get; set; } = string.Empty;
@@ -112,7 +115,7 @@ internal sealed class FileCheckForm : Form
 		sourcePanel.Controls.Add(sourceInfoLabel);
 		sourcePanel.Location = new Point(20, 80);
 		sourcePanel.Name = "sourcePanel";
-		sourcePanel.Size = new Size(400, 70);
+		sourcePanel.Size = new Size(391, 70);
 		sourcePanel.TabIndex = 2;
 		// 
 		// sourceIconBox
@@ -130,6 +133,7 @@ internal sealed class FileCheckForm : Form
 		sourceInfoLabel.Name = "sourceInfoLabel";
 		sourceInfoLabel.Size = new Size(320, 48);
 		sourceInfoLabel.TabIndex = 0;
+		sourceInfoLabel.TextAlign = ContentAlignment.MiddleLeft;
 		// 
 		// destPanel
 		// 
@@ -138,7 +142,7 @@ internal sealed class FileCheckForm : Form
 		destPanel.Controls.Add(destInfoLabel);
 		destPanel.Location = new Point(20, 160);
 		destPanel.Name = "destPanel";
-		destPanel.Size = new Size(400, 70);
+		destPanel.Size = new Size(391, 70);
 		destPanel.TabIndex = 3;
 		// 
 		// destIconBox
@@ -156,49 +160,49 @@ internal sealed class FileCheckForm : Form
 		destInfoLabel.Name = "destInfoLabel";
 		destInfoLabel.Size = new Size(320, 48);
 		destInfoLabel.TabIndex = 0;
+		destInfoLabel.TextAlign = ContentAlignment.MiddleLeft;
 		// 
 		// newerButton
 		// 
-		newerButton.Location = new Point(440, 153);
+		newerButton.Location = new Point(417, 153);
 		newerButton.Name = "newerButton";
-		newerButton.Size = new Size(120, 30);
+		newerButton.Size = new Size(155, 30);
 		newerButton.TabIndex = 7;
 		newerButton.Text = "새파일 덮어쓰기(&E)";
-		newerButton.Visible = false;
 		newerButton.Click += NewerButton_Click;
 		// 
 		// skipButton
 		// 
-		skipButton.Location = new Point(440, 117);
+		skipButton.Location = new Point(417, 117);
 		skipButton.Name = "skipButton";
-		skipButton.Size = new Size(120, 30);
+		skipButton.Size = new Size(155, 30);
 		skipButton.TabIndex = 6;
 		skipButton.Text = "건너뛰기(&S)";
 		skipButton.Click += SkipButton_Click;
 		// 
 		// alwaysButton
 		// 
-		alwaysButton.Location = new Point(440, 80);
+		alwaysButton.Location = new Point(417, 80);
 		alwaysButton.Name = "alwaysButton";
-		alwaysButton.Size = new Size(120, 30);
+		alwaysButton.Size = new Size(155, 30);
 		alwaysButton.TabIndex = 5;
 		alwaysButton.Text = "덮어쓰기(&W)";
 		alwaysButton.Click += AlwayButton_Click;
 		// 
 		// renameButton
 		// 
-		renameButton.Location = new Point(440, 189);
+		renameButton.Location = new Point(417, 189);
 		renameButton.Name = "renameButton";
-		renameButton.Size = new Size(120, 30);
+		renameButton.Size = new Size(155, 30);
 		renameButton.TabIndex = 8;
 		renameButton.Text = "이름바꾸기(&R)";
 		renameButton.Click += RenameButton_Click;
 		// 
 		// cancelButton
 		// 
-		cancelButton.Location = new Point(440, 240);
+		cancelButton.Location = new Point(417, 244);
 		cancelButton.Name = "cancelButton";
-		cancelButton.Size = new Size(120, 30);
+		cancelButton.Size = new Size(155, 30);
 		cancelButton.TabIndex = 9;
 		cancelButton.Text = "취소(C)";
 		cancelButton.Click += CancelButton_Click;
@@ -207,9 +211,10 @@ internal sealed class FileCheckForm : Form
 		// 
 		allCheckBox.Location = new Point(20, 240);
 		allCheckBox.Name = "allCheckBox";
-		allCheckBox.Size = new Size(200, 20);
+		allCheckBox.Size = new Size(391, 20);
 		allCheckBox.TabIndex = 4;
 		allCheckBox.Text = "이후 모두 동일하게 처리(&A)";
+		allCheckBox.TextAlign = ContentAlignment.TopLeft;
 		// 
 		// nameLabel
 		// 
@@ -223,7 +228,8 @@ internal sealed class FileCheckForm : Form
 		// 
 		// FileCheckForm
 		// 
-		ClientSize = new Size(584, 280);
+		CancelButton = cancelButton;
+		ClientSize = new Size(584, 286);
 		Controls.Add(nameLabel);
 		Controls.Add(promptLabel);
 		Controls.Add(fileNameLabel);
@@ -256,6 +262,12 @@ internal sealed class FileCheckForm : Form
 
 		UpdateSourceInfo();
 		UpdateDestInfo();
+
+		if (_srcDir == _dstDir)
+		{
+			alwaysButton.Enabled = false;
+			newerButton.Enabled = false;
+		}
 	}
 
 	private void UpdateSourceInfo()
@@ -263,13 +275,15 @@ internal sealed class FileCheckForm : Form
 		if (File.Exists(SourceFile))
 		{
 			var fi = new FileInfo(SourceFile);
+			_srcDir = fi.DirectoryName ?? string.Empty;
 			fileNameLabel.Text = fi.Name;
 			sourceIconBox.Image = IconCache.Instance.GetLargeIcon(SourceFile);
-			sourceInfoLabel.Text = $"{fi.DirectoryName}\n{fi.Length:N0} 바이트 ({fi.LastWriteTime})";
+			sourceInfoLabel.Text = $"{fi.DirectoryName}\n{fi.Length.FormatFileSize()} ({fi.LastWriteTime})";
 		}
 		else if (Directory.Exists(SourceFile))
 		{
 			var di = new DirectoryInfo(SourceFile);
+			_srcDir = di.Parent?.Name ?? string.Empty;
 			fileNameLabel.Text = di.Name;
 			sourceIconBox.Image = IconCache.Instance.GetLargeIcon(SourceFile, true);
 			sourceInfoLabel.Text = $"{di.FullName}\n({di.LastWriteTime})";
@@ -287,13 +301,15 @@ internal sealed class FileCheckForm : Form
 		if (File.Exists(DestinationFile))
 		{
 			var fi = new FileInfo(DestinationFile);
+			_dstDir = fi.DirectoryName ?? string.Empty;
 			destPanel.Visible = true;
 			destIconBox.Image = IconCache.Instance.GetLargeIcon(DestinationFile);
-			destInfoLabel.Text = $"{fi.DirectoryName}\n{fi.Length:N0} 바이트 ({fi.LastWriteTime})";
+			destInfoLabel.Text = $"{fi.DirectoryName}\n{fi.Length.FormatFileSize()} ({fi.LastWriteTime})";
 		}
 		else if (Directory.Exists(DestinationFile))
 		{
 			var di = new DirectoryInfo(DestinationFile);
+			_dstDir = di.Parent?.Name ?? string.Empty;
 			destPanel.Visible = true;
 			destIconBox.Image = IconCache.Instance.GetLargeIcon(DestinationFile, true);
 			destInfoLabel.Text = $"{di.FullName}\n({di.LastWriteTime})";
@@ -337,7 +353,7 @@ internal sealed class FileCheckForm : Form
 	{
 		var fi = new FileInfo(SourceFile);
 		using var dlg = new LineInputForm("이름 바꾸기", "새 파일 이름을 입력하세요.", fi.Name);
-		if (dlg.RunDialog() == DialogResult.OK)
+		if (dlg.RunDialog(this) == DialogResult.OK)
 		{
 			NewFileName = dlg.InputText;
 			OverwriteResult = OverwriteBy.Rename;
@@ -346,6 +362,6 @@ internal sealed class FileCheckForm : Form
 		}
 	}
 
-	public OverwriteBy RunDialog() =>
-		ShowDialog() == DialogResult.OK ? OverwriteResult : OverwriteBy.None;
+	public OverwriteBy RunDialog(Form parent) =>
+		ShowDialog(parent) == DialogResult.OK ? OverwriteResult : OverwriteBy.None;
 }

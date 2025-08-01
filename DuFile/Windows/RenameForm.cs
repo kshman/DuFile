@@ -233,5 +233,5 @@ internal class RenameForm : Form
     /// 폼을 모달로 실행합니다.
     /// </summary>
     /// <returns>다이얼로그 결과입니다.</returns>
-    public DialogResult RunDialog() => ShowDialog();
+    public DialogResult RunDialog(Form parent) => ShowDialog(parent);
 }

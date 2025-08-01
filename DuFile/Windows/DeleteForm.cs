@@ -258,5 +258,5 @@ internal sealed class DeleteForm : Form
 	/// <summary>
 	/// 다이얼로그를 실행합니다.
 	/// </summary>
-	public void RunDialog() => ShowDialog();
+	public void RunDialog(Form parent) => ShowDialog(parent);
 }

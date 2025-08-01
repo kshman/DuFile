@@ -129,6 +129,7 @@ public partial class MainForm
 			// 편집
 			{ Commands.ClipboardCopy, MenuClipboardCopy },
 			{ Commands.ClipboardCut, MenuClipboardCut },
+			{ Commands.ClipboardPaste, MenuClipboardPaste },
 			// 보기
 			{ Commands.SortByName, MenuSortByName },
 			{ Commands.SortByExtension, MenuSortByExtension },
@@ -145,6 +146,9 @@ public partial class MainForm
 			// 펑션바
 			{ Commands.Copy, MenuCopy },
 			{ Commands.Move, MenuMove },
+			{ Commands.View, MenuView },
+			{ Commands.Edit, MenuEdit },
+			{ Commands.Console, MenuConsole },
 			// 계속 추가합시다.
 		};
 
@@ -328,7 +332,7 @@ public partial class MainForm
 			return;
 
 		using var dlg = new LineInputForm("인수와 함께 실행", "실행에 필요한 인수를 입력해주세요.");
-		if (dlg.RunDialog() != DialogResult.OK)
+		if (dlg.RunDialog(this) != DialogResult.OK)
 			return;
 
 		ExcuteProcess(name, dlg.InputText);
@@ -344,14 +348,14 @@ public partial class MainForm
 		mesg.UtilText = "삭제(&D)";
 		mesg.DisplayIcon = MessageBoxIcon.Question;
 
-		var ret = mesg.RunDialog();
+		var ret = mesg.RunDialog(this);
 		if (ret == DialogResult.Cancel)
 			return;
 
 		_activePanel.Watching = false;
 		using var dlg = new DeleteForm("파일 삭제", files);
 		dlg.TrashMode = ret != DialogResult.Yes; // Yes면 바로 삭제, 아니면 휴지통으로 이동
-		dlg.RunDialog();
+		dlg.RunDialog(this);
 
 		_activePanel.Navigate(FilePanelNavigation.Current);
 	}
@@ -366,14 +370,14 @@ public partial class MainForm
 		mesg.UtilText = "휴지통으로(&T)";
 		mesg.DisplayIcon = MessageBoxIcon.Warning;
 
-		var ret = mesg.RunDialog();
+		var ret = mesg.RunDialog(this);
 		if (ret == DialogResult.Cancel)
 			return;
 
 		_activePanel.Watching = false;
 		using var dlg = new DeleteForm("파일 삭제", files);
 		dlg.TrashMode = ret == DialogResult.Yes; // Yes면 휴지통으로 이동, 아니면 바로 삭제
-		dlg.RunDialog();
+		dlg.RunDialog(this);
 
 		_activePanel.Navigate(FilePanelNavigation.Current);
 	}
@@ -386,7 +390,7 @@ public partial class MainForm
 
 		_activePanel.Watching = false;
 		using var dlg = new RenameForm(files);
-		dlg.RunDialog();
+		dlg.RunDialog(this);
 
 		_activePanel.Navigate(FilePanelNavigation.Current);
 	}
@@ -406,7 +410,7 @@ public partial class MainForm
 			return;
 
 		using var dlg = new LineInputForm("새 폴더 만들기", "새 폴더의 이름을 입력해주세요.");
-		if (dlg.RunDialog() != DialogResult.OK)
+		if (dlg.RunDialog(this) != DialogResult.OK)
 			return;
 
 		var name = dlg.InputText.Trim();
@@ -496,7 +500,7 @@ public partial class MainForm
 
 		using var mesg = new MesgBoxForm("파일 복사", $"선택한 {files.Count}개의 항목을 복사할까요?", files);
 		mesg.DisplayIcon = MessageBoxIcon.Question;
-		var ret = mesg.RunDialog();
+		var ret = mesg.RunDialog(this);
 		if (ret == DialogResult.Cancel)
 			return;
 
@@ -506,7 +510,7 @@ public partial class MainForm
 		var other = OtherPanel;
 		using var dlg = new CopyForm("파일 복사", files, other.CurrentDirectory);
 		dlg.MoveMode = false;
-		dlg.RunDialog();
+		dlg.RunDialog(this);
 
 		leftPanel.Navigate(FilePanelNavigation.Current);
 		rightPanel.Navigate(FilePanelNavigation.Current);
@@ -523,7 +527,7 @@ public partial class MainForm
 
 		using var mesg = new MesgBoxForm("파일 이동", $"선택한 {files.Count}개의 항목을 이동할까요?", files);
 		mesg.DisplayIcon = MessageBoxIcon.Question;
-		var ret = mesg.RunDialog();
+		var ret = mesg.RunDialog(this);
 		if (ret == DialogResult.Cancel)
 			return;
 
@@ -533,7 +537,7 @@ public partial class MainForm
 		var other = OtherPanel;
 		using var dlg = new CopyForm("파일 이동", files, other.CurrentDirectory);
 		dlg.MoveMode = true;
-		dlg.RunDialog();
+		dlg.RunDialog(this);
 
 		leftPanel.Navigate(FilePanelNavigation.Current);
 		rightPanel.Navigate(FilePanelNavigation.Current);
@@ -569,5 +573,80 @@ public partial class MainForm
 		if (files.Count == 0)
 			return;
 		SetClipboardFiles(files, true);
+	}
+
+	private void MenuClipboardPaste()
+	{
+		var dest = _activePanel.CurrentDirectory;
+		if (string.IsNullOrEmpty(dest))
+			return;
+
+		if (!Clipboard.ContainsFileDropList())
+			return;
+
+		var files = Clipboard.GetFileDropList().Cast<string>().ToArray();
+		if (files.Length == 0)
+			return;
+
+		_activePanel.Watching = false;
+		
+		using var dlg = new CopyForm("파일 붙여넣기", files, dest);
+		dlg.MoveMode = false; // 붙여넣기는 항상 복사
+		dlg.RunDialog(this);
+
+		_activePanel.Navigate(FilePanelNavigation.Current);
+	}
+
+	private void MenuView()
+	{
+		var files = _activePanel.GetSelectedItems();
+		if (files.Count == 0)
+			return;
+
+		var viwer = Settings.Instance.ExternalView;
+		if (string.IsNullOrEmpty(viwer))
+			return;
+
+		var arguments = string.Join(" ", files.Select(f => $"\"{f}\""));
+		ExcuteProcess(viwer, arguments);
+	}
+
+	private void MenuEdit()
+	{
+		var files = _activePanel.GetSelectedItems();
+		if (files.Count == 0)
+			return;
+
+		var editor = Settings.Instance.ExternalEdit;
+		if (string.IsNullOrEmpty(editor))
+			return;
+
+		var arguments = string.Join(" ", files.Select(f => $"\"{f}\""));
+		ExcuteProcess(editor, arguments);
+	}
+
+	private void MenuConsole()
+	{
+		var dir = _activePanel.CurrentDirectory;
+		if (string.IsNullOrEmpty(dir))
+			dir = Settings.InitialStartFolder;
+
+		try
+		{
+			var process = new System.Diagnostics.Process
+			{
+				StartInfo = new System.Diagnostics.ProcessStartInfo
+				{
+					FileName = "cmd.exe",
+					WorkingDirectory = dir,
+				}
+			};
+			process.Start();
+			_countExecute++;
+		}
+		catch (Exception ex)
+		{
+			Debugs.WriteLine($"파일 열기 오류: {ex.Message}");
+		}
 	}
 }

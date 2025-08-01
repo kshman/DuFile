@@ -1,4 +1,7 @@
 ﻿// ReSharper disable MissingXmlDoc
+using System.Windows.Forms;
+using System.Xml.Linq;
+
 namespace DuFile.Windows;
 
 internal sealed class CopyForm : Form
@@ -104,7 +107,7 @@ internal sealed class CopyForm : Form
 		MinimizeBox = false;
 		Name = "CopyForm";
 		ShowIcon = false;
-		ShowInTaskbar = false;
+		ShowInTaskbar = true;
 		StartPosition = FormStartPosition.CenterParent;
 		ResumeLayout(false);
 	}
@@ -130,12 +133,32 @@ internal sealed class CopyForm : Form
 
 	private async Task<DialogResult> InvokeError(string mesg, params string[] args)
 	{
-		var dlg = new MesgBoxForm("오류", mesg, args);
-		dlg.SetButtonText("무시", "취소", "재시도");
-		dlg.DisplayIcon = MessageBoxIcon.Error;
-		var result = DialogResult.None;
-		await InvokeAsync(() => result = dlg.RunDialog());
-		return result;
+		var tcs = new TaskCompletionSource<DialogResult>();
+		BeginInvoke(() =>
+		{
+			var dlg = new MesgBoxForm("오류", mesg, args);
+			dlg.SetButtonText("무시", "취소", "재시도");
+			dlg.DisplayIcon = MessageBoxIcon.Error;
+			var result = dlg.RunDialog(this);
+			tcs.SetResult(result);
+		});
+		return await tcs.Task;
+	}
+
+	private record InvokeFileCheckRecord(OverwriteBy Result, string? NewName);
+
+	private async Task<InvokeFileCheckRecord> InvokeFileCheck(string title, string message, string name, string source, string destination)
+	{
+		var tcs = new TaskCompletionSource<InvokeFileCheckRecord>();
+		BeginInvoke(() =>
+		{
+			var check = new FileCheckForm(title, message, name);
+			check.SourceFile = source;
+			check.DestinationFile = destination;
+			var result = check.RunDialog(this);
+			tcs.SetResult(new InvokeFileCheckRecord(result, check.NewFileName));
+		});
+		return await tcs.Task;
 	}
 
 	private async Task WorkFilesAsync(string dest,
@@ -160,14 +183,11 @@ internal sealed class CopyForm : Form
 
 			if (Path.Exists(destFile))
 			{
-				var check = new FileCheckForm(
+				var res = await InvokeFileCheck(
 					"같은 파일이 이미 있어요",
 					"같은 이름의 파일이 이미 있습니다. 어떻게 할까요?",
-					Path.GetFileName(destFile));
-				check.SourceFile = file.FullName;
-				check.DestinationFile = destFile;
-				var res = check.RunDialog();
-				switch (res)
+					file.Name, file.FullName, destFile);
+				switch (res.Result)
 				{
 					case OverwriteBy.None:
 						await _cts.CancelAsync();
@@ -185,8 +205,8 @@ internal sealed class CopyForm : Form
 					}
 					case OverwriteBy.Rename:
 						// 이름 바꾸기, 바꾼 이름도 있으면 걍 덮어쓴다
-						if (!string.IsNullOrEmpty(check.NewFileName))
-							destFile = check.NewFileName;
+						if (!string.IsNullOrEmpty(res.NewName))
+							destFile = Path.Combine(dest, res.NewName);
 						break;
 					default:
 						throw new ArgumentOutOfRangeException();
@@ -246,14 +266,11 @@ internal sealed class CopyForm : Form
 
 			if (Path.Exists(destDir))
 			{
-				var check = new FileCheckForm(
+				var res = await InvokeFileCheck(
 					"같은 폴더가 이미 있어요",
 					"같은 이름의 폴더가 이미 있습니다. 어떻게 할까요?",
-					Path.GetFileName(destDir));
-				check.SourceFile = dir.FullName;
-				check.DestinationFile = destDir;
-				var res = check.RunDialog();
-				switch (res)
+					dir.Name, dir.FullName, destDir);
+				switch (res.Result)
 				{
 					case OverwriteBy.None:
 						await _cts.CancelAsync();
@@ -271,8 +288,8 @@ internal sealed class CopyForm : Form
 					}
 					case OverwriteBy.Rename:
 						// 이름 바꾸기, 바꾼 이름도 있으면 걍 덮어쓴다
-						if (!string.IsNullOrEmpty(check.NewFileName))
-							destDir = check.NewFileName;
+						if (!string.IsNullOrEmpty(res.NewName))
+							destDir = Path.Combine(dest, res.NewName);
 						break;
 					default:
 						throw new ArgumentOutOfRangeException();
@@ -356,5 +373,5 @@ internal sealed class CopyForm : Form
 		_cts.Cancel();
 	}
 
-	public void RunDialog() => ShowDialog();
+	public void RunDialog(Form parent) => ShowDialog(parent);
 }
