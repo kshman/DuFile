@@ -517,8 +517,10 @@ public class TabStrip : ThemeControl
 		InvokeClicked(e, TabStripElement.None);
 	}
 
-	// 탭 목록 메뉴 표시
-	private void ShowTabListMenu()
+	/// <summary>
+	/// 탭 목록 메뉴 표시
+	/// </summary>
+	public void ShowTabListMenu()
 	{
 		if (_tabListMenu != null)
 		{

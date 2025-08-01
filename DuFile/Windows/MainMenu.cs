@@ -47,6 +47,25 @@ public partial class MainForm
 		new()
 		{
 			Text = "편집(&E)",
+			SubMenus = [
+				new MenuDef { Text = "복사(&C)", Command = Commands.ClipboardCopy, Shortcut = "Ctrl+C" },
+				new MenuDef { Text = "붙여넣기(&V)", Command = Commands.ClipboardPaste, Shortcut = "Ctrl+V" },
+				new MenuDef { Text = "잘라내기(&X)", Command = Commands.ClipboardCut, Shortcut = "Ctrl+X" },
+				new MenuDef(),
+				new MenuDef { Text = "전체 경로 이름 복사(&L)", Command = Commands.None, Shortcut = "Ctrl+Alt+F" },
+				new MenuDef { Text = "파일 이름만 복사(&A)", Command = Commands.None, Shortcut = "Ctrl+Alt+A" },
+				new MenuDef { Text = "경로 이름만 복사(&R)", Command = Commands.None, Shortcut = "Ctrl+Alt+R" },
+				new MenuDef(),
+				new MenuDef { Text = "선택/해제(&B)", Command = Commands.None },
+				new MenuDef { Text = "전체 선택(&U)", Command = Commands.None, Shortcut = "Alt+U" },
+				new MenuDef { Text = "선택 해제(&N)", Command = Commands.None, Shortcut = "Ctrl+Alt+U" },
+				new MenuDef { Text = "선택 반전(&I)", Command = Commands.None, Shortcut = "Ctrl+Alt+I" },
+				new MenuDef { Text = "고급 선택(&G)", Command = Commands.None, Shortcut = "Alt+D" },
+				new MenuDef { Text = "고급 해제(&W)", Command = Commands.None, Shortcut = "Ctrl+Alt+D" },
+				new MenuDef(),
+				new MenuDef { Text = "같은 확장자 모두 선택(&E)", Command = Commands.None, Shortcut = "Ctrl+Alt+E" },
+				new MenuDef { Text = "같은 이름 모두 선택(&N)", Command = Commands.None, Shortcut = "Ctrl+Alt+N" },
+			]
 		},
 		new()
 		{
@@ -71,7 +90,7 @@ public partial class MainForm
 				new MenuDef { Text = "숨김 파일 보기(&Z)", Command = Commands.ShowHidden, Shortcut = "Alt+Z" },
 				new MenuDef(),
 				new MenuDef { Text = "새 탭(&T)", Command = Commands.NewTab, Shortcut = "Ctrl+T" },
-				new MenuDef { Text = "탭 목록(&Y)", Command = Commands.None },
+				new MenuDef { Text = "탭 목록(&Y)", Command = Commands.TabList },
 			]
 		},
 		new()
@@ -108,14 +127,24 @@ public partial class MainForm
 			{ Commands.NavParentFolder, MenuNavParentFolder },
 			{ Commands.NavRootFolder, MenuNavRootFolder },
 			// 편집
+			{ Commands.ClipboardCopy, MenuClipboardCopy },
+			{ Commands.ClipboardCut, MenuClipboardCut },
 			// 보기
 			{ Commands.SortByName, MenuSortByName },
-			{ Commands.SortByExtension, MenuSortByExtension }, 
+			{ Commands.SortByExtension, MenuSortByExtension },
 			{ Commands.SortBySize, MenuSortBySize },
 			{ Commands.SortByDateTime, MenuSortByDateTime },
 			{ Commands.SortByAttribute, MenuSortByAttribute },
 			{ Commands.SortDesc, MenuSortDesc },
 			{ Commands.ShowHidden, MenuShowHidden },
+			{ Commands.NewTab, MenuNewTab },
+			{ Commands.TabList, MenuTabList },
+			{ Commands.NextTab, MenuNextTab },
+			{ Commands.PreviousTab, MenuPreviousTab },
+			{ Commands.SwitchPanel, MenuSwitchPanel },
+			// 펑션바
+			{ Commands.Copy, MenuCopy },
+			{ Commands.Move, MenuMove },
 			// 계속 추가합시다.
 		};
 
@@ -250,6 +279,23 @@ public partial class MainForm
 		}
 	}
 
+	// 패널 전환
+	public void SwitchPanel()
+	{
+		var index = _activePanel.PanelIndex;
+		switch (index)
+		{
+			case 1:
+				rightPanel.Focus();
+				_activePanel = rightPanel;
+				break;
+			case 2:
+				leftPanel.Focus();
+				_activePanel = leftPanel;
+				break;
+		}
+	}
+
 	// 없구먼
 	private void MenuNone()
 	{
@@ -307,7 +353,7 @@ public partial class MainForm
 		dlg.TrashMode = ret != DialogResult.Yes; // Yes면 바로 삭제, 아니면 휴지통으로 이동
 		dlg.RunDialog();
 
-		_activePanel.NavigateAgain();
+		_activePanel.Navigate(FilePanelNavigation.Current);
 	}
 
 	private void MenuDelete()
@@ -329,7 +375,7 @@ public partial class MainForm
 		dlg.TrashMode = ret == DialogResult.Yes; // Yes면 휴지통으로 이동, 아니면 바로 삭제
 		dlg.RunDialog();
 
-		_activePanel.NavigateAgain();
+		_activePanel.Navigate(FilePanelNavigation.Current);
 	}
 
 	private void MenuRename()
@@ -342,7 +388,7 @@ public partial class MainForm
 		using var dlg = new RenameForm(files);
 		dlg.RunDialog();
 
-		_activePanel.NavigateAgain();
+		_activePanel.Navigate(FilePanelNavigation.Current);
 	}
 
 	private void MenuProperties()
@@ -375,7 +421,7 @@ public partial class MainForm
 		{
 			_activePanel.Watching = false;
 			Directory.CreateDirectory(fullName);
-			_activePanel.NavigateAgain();
+			_activePanel.Navigate(FilePanelNavigation.Current);
 			_activePanel.EnsureFocus(fullName);
 		}
 		catch
@@ -384,8 +430,8 @@ public partial class MainForm
 		}
 	}
 
-	private void MenuNavParentFolder() => _activePanel.NavigateParent();
-	private void MenuNavRootFolder() => _activePanel.NavigateRoot();
+	private void MenuNavParentFolder() => _activePanel.Navigate(FilePanelNavigation.Parent);
+	private void MenuNavRootFolder() => _activePanel.Navigate(FilePanelNavigation.Root);
 
 	private void SortBySort(int sortOrder)
 	{
@@ -415,8 +461,113 @@ public partial class MainForm
 	{
 		var settings = Settings.Instance;
 		settings.ShowHidden = !settings.ShowHidden;
-		leftPanel.NavigateAgain();
-		rightPanel.NavigateAgain();
+		leftPanel.Navigate(FilePanelNavigation.Current);
+		rightPanel.Navigate(FilePanelNavigation.Current);
 		CheckMenuItem();
+	}
+
+	private void MenuNewTab() => _activePanel.AddTab();
+	private void MenuTabList() => _activePanel.ShowTabListMenu();
+	private void MenuNextTab() => _activePanel.NextTab();
+	private void MenuPreviousTab() => _activePanel.PreviousTab();
+	private void MenuSwitchPanel() => SwitchPanel();
+
+	private bool CheckPanelDirectory()
+	{
+		var leftDir = leftPanel.CurrentDirectory;
+		var rightDir = rightPanel.CurrentDirectory;
+		if (leftDir == rightDir)
+		{
+			MessageBox.Show("왼쪽과 오른쪽이 동일한 폴더를 가리키고 있어요. 다른 폴더를 선택해주세요.", "오류", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+			return false;
+		}
+
+		return true;
+	}
+
+	private void MenuCopy()
+	{
+		if (!CheckPanelDirectory())
+			return;
+
+		var files = _activePanel.GetSelectedItems();
+		if (files.Count == 0)
+			return;
+
+		using var mesg = new MesgBoxForm("파일 복사", $"선택한 {files.Count}개의 항목을 복사할까요?", files);
+		mesg.DisplayIcon = MessageBoxIcon.Question;
+		var ret = mesg.RunDialog();
+		if (ret == DialogResult.Cancel)
+			return;
+
+		leftPanel.Watching = false;
+		rightPanel.Watching = false;
+
+		var other = OtherPanel;
+		using var dlg = new CopyForm("파일 복사", files, other.CurrentDirectory);
+		dlg.MoveMode = false;
+		dlg.RunDialog();
+
+		leftPanel.Navigate(FilePanelNavigation.Current);
+		rightPanel.Navigate(FilePanelNavigation.Current);
+	}
+
+	private void MenuMove()
+	{
+		if (!CheckPanelDirectory())
+			return;
+
+		var files = _activePanel.GetSelectedItems();
+		if (files.Count == 0)
+			return;
+
+		using var mesg = new MesgBoxForm("파일 이동", $"선택한 {files.Count}개의 항목을 이동할까요?", files);
+		mesg.DisplayIcon = MessageBoxIcon.Question;
+		var ret = mesg.RunDialog();
+		if (ret == DialogResult.Cancel)
+			return;
+
+		leftPanel.Watching = false;
+		rightPanel.Watching = false;
+
+		var other = OtherPanel;
+		using var dlg = new CopyForm("파일 이동", files, other.CurrentDirectory);
+		dlg.MoveMode = true;
+		dlg.RunDialog();
+
+		leftPanel.Navigate(FilePanelNavigation.Current);
+		rightPanel.Navigate(FilePanelNavigation.Current);
+	}
+
+	private static void SetClipboardFiles(IEnumerable<string> files, bool cut)
+	{
+		var data = new DataObject();
+		// 파일 목록을 CF_HDROP 포맷으로 추가
+		data.SetData(DataFormats.FileDrop, files.ToArray());
+
+		// Preferred DropEffect 설정 (복사: 5, 잘라내기: 2)
+		var effect = cut ? 2 : 5;
+		var bytes = BitConverter.GetBytes(effect);
+		var ms = new MemoryStream();
+		ms.Write(bytes, 0, bytes.Length);
+		data.SetData("Preferred DropEffect", ms);
+
+		Clipboard.SetDataObject(data, true);
+	}
+
+	private void MenuClipboardCopy()
+	{
+		var files = _activePanel.GetSelectedItems();
+		if (files.Count == 0)
+			return;
+		SetClipboardFiles(files, false);
+	}
+
+	private void MenuClipboardCut()
+	{
+		var files = _activePanel.GetSelectedItems();
+		if (files.Count == 0)
+			return;
+		SetClipboardFiles(files, true);
 	}
 }

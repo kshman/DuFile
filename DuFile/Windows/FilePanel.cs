@@ -145,7 +145,6 @@ public class FilePanel : UserControl, IThemeUpate
 		tabStrip.Name = "tabStrip";
 		tabStrip.ScrollButtonWidth = 22;
 		tabStrip.Size = new Size(400, 23);
-		tabStrip.TabIndex = 0;
 		tabStrip.Text = "tabStrip";
 		tabStrip.SelectedIndexChanged += tabStrip_SelectedIndexChanged;
 		tabStrip.CloseClick += tabStrip_CloseClick;
@@ -159,7 +158,6 @@ public class FilePanel : UserControl, IThemeUpate
 		fileInfoLabel.Location = new Point(0, 305);
 		fileInfoLabel.Name = "fileInfoLabel";
 		fileInfoLabel.Size = new Size(398, 20);
-		fileInfoLabel.TabIndex = 1;
 		fileInfoLabel.Text = "(파일 정보)";
 		fileInfoLabel.TextAlign = ContentAlignment.MiddleLeft;
 		// 
@@ -174,7 +172,6 @@ public class FilePanel : UserControl, IThemeUpate
 		workPanel.Location = new Point(0, 23);
 		workPanel.Name = "workPanel";
 		workPanel.Size = new Size(400, 327);
-		workPanel.TabIndex = 2;
 		// 
 		// fileList
 		// 
@@ -184,7 +181,7 @@ public class FilePanel : UserControl, IThemeUpate
 		fileList.Location = new Point(0, 40);
 		fileList.Name = "fileList";
 		fileList.Size = new Size(398, 265);
-		fileList.TabIndex = 4;
+		fileList.TabIndex = 0;
 		fileList.Text = "fileList1";
 		fileList.FocusedIndexChanged += fileList_FocusedIndexChanged;
 		fileList.SelectionChanged += fileList_SelectionChanged;
@@ -200,7 +197,6 @@ public class FilePanel : UserControl, IThemeUpate
 		infoPanel.Location = new Point(0, 20);
 		infoPanel.Name = "infoPanel";
 		infoPanel.Size = new Size(398, 20);
-		infoPanel.TabIndex = 3;
 		// 
 		// pathLabel
 		// 
@@ -208,7 +204,6 @@ public class FilePanel : UserControl, IThemeUpate
 		pathLabel.Location = new Point(3, 0);
 		pathLabel.Name = "pathLabel";
 		pathLabel.Size = new Size(392, 20);
-		pathLabel.TabIndex = 1;
 		pathLabel.PropertyClick += pathLabel_PropertyClick;
 		// 
 		// dirPanel
@@ -223,7 +218,6 @@ public class FilePanel : UserControl, IThemeUpate
 		dirPanel.Location = new Point(0, 0);
 		dirPanel.Name = "dirPanel";
 		dirPanel.Size = new Size(398, 20);
-		dirPanel.TabIndex = 2;
 		// 
 		// historyButton
 		// 
@@ -235,7 +229,6 @@ public class FilePanel : UserControl, IThemeUpate
 		historyButton.Margin = new Padding(0);
 		historyButton.Name = "historyButton";
 		historyButton.Size = new Size(20, 20);
-		historyButton.TabIndex = 3;
 		historyButton.UseVisualStyleBackColor = true;
 		historyButton.Click += historyButton_Click;
 		// 
@@ -249,7 +242,6 @@ public class FilePanel : UserControl, IThemeUpate
 		refreshButton.Margin = new Padding(0);
 		refreshButton.Name = "refreshButton";
 		refreshButton.Size = new Size(20, 20);
-		refreshButton.TabIndex = 2;
 		refreshButton.UseVisualStyleBackColor = true;
 		refreshButton.Click += refreshButton_Click;
 		// 
@@ -263,7 +255,6 @@ public class FilePanel : UserControl, IThemeUpate
 		editDirButton.Margin = new Padding(0);
 		editDirButton.Name = "editDirButton";
 		editDirButton.Size = new Size(20, 20);
-		editDirButton.TabIndex = 1;
 		editDirButton.UseVisualStyleBackColor = true;
 		editDirButton.Click += editDirButton_Click;
 		// 
@@ -273,7 +264,6 @@ public class FilePanel : UserControl, IThemeUpate
 		breadcrumbPath.Location = new Point(0, 0);
 		breadcrumbPath.Name = "breadcrumbPath";
 		breadcrumbPath.Size = new Size(330, 20);
-		breadcrumbPath.TabIndex = 0;
 		breadcrumbPath.TabStop = false;
 		breadcrumbPath.Text = "breadcrumbPath";
 		breadcrumbPath.PathClick += breadcrumbPath_PathClick;
@@ -284,7 +274,6 @@ public class FilePanel : UserControl, IThemeUpate
 		pathTextBox.Location = new Point(0, 0);
 		pathTextBox.Name = "pathTextBox";
 		pathTextBox.Size = new Size(330, 23);
-		pathTextBox.TabIndex = 0;
 		pathTextBox.TabStop = false;
 		pathTextBox.Visible = false;
 		pathTextBox.KeyDown += pathTextBox_KeyDown;
@@ -367,6 +356,7 @@ public class FilePanel : UserControl, IThemeUpate
 	{
 		base.OnEnter(e);
 		SetActivePanel(true);
+		fileList.Focus();
 	}
 
 	/// <inheritdoc/>
@@ -437,7 +427,7 @@ public class FilePanel : UserControl, IThemeUpate
 				// 새 탭 추가
 				var newTabItem = new ToolStripMenuItem("새 탭 추가", null, (_, _) =>
 				{
-					AddTab(null, true);
+					AddTab();
 				});
 				menu.Items.Add(newTabItem);
 
@@ -562,7 +552,7 @@ public class FilePanel : UserControl, IThemeUpate
 
 					item = new ToolStripMenuItem("새 탭에서 열기", null, (_, _) =>
 					{
-						AddTab(e.Path, true);
+						AddTab(e.Path);
 					});
 					menu.Items.Add(item);
 				}
@@ -738,33 +728,47 @@ public class FilePanel : UserControl, IThemeUpate
 	}
 
 	/// <summary>
-	/// 다시 한번 현재 디렉터리로 이동합니다.
+	/// 네비게이션 명령을 실행합니다.
 	/// </summary>
-	public void NavigateAgain()
+	/// <param name="nav"></param>
+	/// <exception cref="ArgumentOutOfRangeException"></exception>
+	public void Navigate(FilePanelNavigation nav)
 	{
-		var index = fileList.FocusedIndex;
-		NavigateTo(_current);
-		fileList.FocusedIndex = index;
-	}
-
-	/// <summary>
-	/// 부모 폴더로 이동합니다.
-	/// </summary>
-	public void NavigateParent()
-	{
-		var info = new DirectoryInfo(_current);
-		if (info.Parent is { Exists: true })
-			NavigateTo(info.Parent.FullName, info.FullName);
-	}
-
-	/// <summary>
-	/// 루트 디렉터리로 이동합니다.
-	/// </summary>
-	public void NavigateRoot()
-	{
-		var info = new DirectoryInfo(_current);
-		if (info.Root is { Exists: true })
-			NavigateTo(info.Root.FullName, info.FullName);
+		switch (nav)
+		{
+			case FilePanelNavigation.Current:
+			{
+				var index = fileList.FocusedIndex;
+				NavigateTo(_current);
+				fileList.FocusedIndex = index;
+				break;
+			}
+			case FilePanelNavigation.Parent:
+			{
+				var info = new DirectoryInfo(_current);
+				if (info.Parent is { Exists: true })
+					NavigateTo(info.Parent.FullName, info.FullName);
+				break;
+			}
+			case FilePanelNavigation.Root:
+			{
+				var info = new DirectoryInfo(_current);
+				if (info.Root is { Exists: true })
+					NavigateTo(info.Root.FullName, info.FullName);
+				break;
+			}
+			case FilePanelNavigation.SwichPanel:
+				MainForm?.SwitchPanel();
+				break;
+			case FilePanelNavigation.NextTab:
+				NextTab();
+				break;
+			case FilePanelNavigation.PreviousTab:
+				PreviousTab();
+				break;
+			default:
+				throw new ArgumentOutOfRangeException(nameof(nav), nav, null);
+		}
 	}
 
 	/// <summary>
@@ -866,7 +870,7 @@ public class FilePanel : UserControl, IThemeUpate
 	/// 패널의 활성화 상태를 설정합니다.
 	/// </summary>
 	/// <param name="isActive">활성화 여부</param>
-	public void SetActivePanel(bool isActive)
+	private void SetActivePanel(bool isActive)
 	{
 		if (_isActive == isActive)
 			return;
@@ -879,7 +883,7 @@ public class FilePanel : UserControl, IThemeUpate
 		pathLabel.IsActive = isActive;
 		tabStrip.IsActive = isActive;
 
-		PanelActivated?.Invoke(this, new FilePanelActiveEventArgs(this, isActive));
+		PanelActivated?.Invoke(this, new FilePanelActiveEventArgs(PanelIndex, isActive));
 	}
 
 	// 경로 편집 모드로 진입
@@ -908,7 +912,7 @@ public class FilePanel : UserControl, IThemeUpate
 	/// </summary>
 	/// <param name="directory">탭에 추가할 디렉터리 경로</param>
 	/// <param name="force">강제로 추가 여부</param>
-	public void AddTab(string? directory, bool force = false)
+	public void AddTab(string? directory = null, bool force = true)
 	{
 		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
 		{
@@ -950,6 +954,12 @@ public class FilePanel : UserControl, IThemeUpate
 		else
 			tabStrip.SelectedIndex = tabStrip.Count - 1;
 	}
+
+	/// <summary>
+	/// 탭 목록 메뉴를 표시합니다.
+	/// </summary>
+	public void ShowTabListMenu() =>
+		tabStrip.ShowTabListMenu();
 
 	// 탭 목록을 읽어옵니다. 한 번만 호출 가능합니다.
 	private void LoadTabs()
@@ -1091,16 +1101,35 @@ public class FilePanel : UserControl, IThemeUpate
 /// <summary>
 /// 파일 패널의 활성화 이벤트 인자 클래스입니다.
 /// </summary>
-/// <param name="panel">이벤트가 발생한 파일 패널</param>
+/// <param name="index">이벤트가 발생한 파일 패널 순번</param>
 /// <param name="isActive">활성화 여부</param>
-public class FilePanelActiveEventArgs(FilePanel panel, bool isActive) : EventArgs
+public class FilePanelActiveEventArgs(int index, bool isActive) : EventArgs
 {
 	/// <summary>
-	/// 이벤트가 발생한 파일 패널입니다.
+	/// 이벤트가 발생한 파일 패널 순번입니다.
 	/// </summary>
-	public FilePanel Panel { get; } = panel;
+	public int Index { get; } = index;
 	/// <summary>
 	/// 패널의 활성화 여부입니다.
 	/// </summary>
 	public bool IsActive { get; } = isActive;
+}
+
+/// <summary>
+/// 파일 패널의 탐색 방향을 나타내는 열거형입니다.
+/// </summary>
+public enum FilePanelNavigation
+{
+	/// <summary>현재 디렉터리로 이동합니다.</summary>
+	Current,
+	/// <summary>부모 디렉터리로 이동합니다.</summary>
+	Parent,
+	/// <summary>루트 디렉터리로 이동합니다.</summary>
+	Root,
+	/// <summary>패널을 옮깁니다.</summary>
+	SwichPanel,
+	/// <summary>다음 탭으로 이동합니다.</summary>
+	NextTab,
+	/// <summary>이전 탭으로 이동합니다.</summary>
+	PreviousTab,
 }

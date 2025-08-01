@@ -54,6 +54,7 @@ internal class Commands
 	public const string NextTab = "#다음탭";
 	public const string PreviousTab = "#이전탭";
 	public const string SwitchPanel = "#패널전환";
+	public const string TabList = "#탭목록";
 
 	private static readonly Dictionary<string, string> s_friendlyMap = new()
 	{
@@ -109,6 +110,7 @@ internal class Commands
 		{ NextTab, "다음 탭" },
 		{ PreviousTab, "이전 탭" },
 		{ SwitchPanel, "패널 전환" },
+		{ TabList, "탭 목록" },
 	};
 
 	public static string ToFriendlyName(string command) =>

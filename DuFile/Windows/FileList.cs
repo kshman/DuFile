@@ -418,7 +418,11 @@ public sealed class FileList : ThemeControl
 	{
 		return keyData switch
 		{
-			Keys.Up or Keys.Down or Keys.Left or Keys.Right => true,
+			Keys.Up or Keys.Down or Keys.Left or Keys.Right or
+			Keys.Tab or
+			(Keys.Shift | Keys.Tab) or
+			(Keys.Control | Keys.Tab) or
+			(Keys.Control | Keys.Shift | Keys.Tab) => true,
 			_ => base.IsInputKey(keyData)
 		};
 	}
@@ -473,10 +477,10 @@ public sealed class FileList : ThemeControl
 				ItemActivate?.Invoke(this, EventArgs.Empty);
 				return;
 			case Keys.Back:
-				FilePanel?.NavigateParent();
+				FilePanel?.Navigate(FilePanelNavigation.Parent);
 				return;
 			case Keys.OemBackslash or Keys.Oem5:
-				FilePanel?.NavigateRoot();
+				FilePanel?.Navigate(FilePanelNavigation.Root);
 				return;
 			case Keys.Apps when ItemClicked != null:
 				// 메뉴키는 마우스 오른쪽 누름을 에뮬레이션
@@ -487,6 +491,19 @@ public sealed class FileList : ThemeControl
 						new FileListClickEventArgs(curIndex, MouseButtons.Right, rect.Location));
 				}
 				return;
+			case Keys.Tab:
+				switch (e.Modifiers)
+				{
+					case Keys.Control:
+						FilePanel?.Navigate(FilePanelNavigation.NextTab);
+						return;
+					case Keys.Control | Keys.Shift:
+						FilePanel?.Navigate(FilePanelNavigation.PreviousTab);
+						return;
+					default:
+						FilePanel?.Navigate(FilePanelNavigation.SwichPanel);
+						return;
+				}
 		}
 
 		newIndex = Math.Clamp(newIndex, 0, Items.Count - 1);
@@ -1627,7 +1644,7 @@ public class FileListDriveItem : FileListItem
 	/// </summary>
 	/// <remarks>드라이브명과 볼륨 라벨을 추출 및 포맷하고, 아이콘과 테마 색상을 적용합니다.</remarks>
 	/// <param name="driveInfo">드라이브 정보를 초기화에 사용합니다.</param>
-	public FileListDriveItem(DriveInfo driveInfo) 
+	public FileListDriveItem(DriveInfo driveInfo)
 	{
 		SetFileInfomation(driveInfo.RootDirectory.FullName, DateTime.Now, FileAttributes.Directory);
 

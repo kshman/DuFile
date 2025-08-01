@@ -3,7 +3,7 @@
 /// <summary>
 /// 여러 파일의 이름을 순차적으로 변경할 수 있는 폼입니다.
 /// </summary>
-public class RenameForm : Form
+internal class RenameForm : Form
 {
 #nullable disable
     private Label promptLabel;
@@ -71,7 +71,7 @@ public class RenameForm : Form
 		currentLabel.ForeColor = Color.FromArgb(0, 122, 204);
 		currentLabel.Location = new Point(12, 44);
 		currentLabel.Name = "currentLabel";
-		currentLabel.Size = new Size(333, 25);
+		currentLabel.Size = new Size(433, 25);
 		currentLabel.TabIndex = 1;
 		currentLabel.Text = "현재 파일 이름";
 		currentLabel.TextAlign = ContentAlignment.MiddleLeft;
@@ -82,28 +82,31 @@ public class RenameForm : Form
 		orderLabel.ForeColor = SystemColors.ControlText;
 		orderLabel.Location = new Point(372, 44);
 		orderLabel.Name = "orderLabel";
-		orderLabel.Size = new Size(100, 25);
+		orderLabel.Size = new Size(200, 25);
 		orderLabel.TabIndex = 2;
 		orderLabel.Text = "(0 / 0)";
 		orderLabel.TextAlign = ContentAlignment.MiddleRight;
 		// 
 		// nameTextBox
 		// 
+		nameTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 		nameTextBox.Location = new Point(12, 71);
 		nameTextBox.Name = "nameTextBox";
-		nameTextBox.Size = new Size(357, 23);
+		nameTextBox.Size = new Size(453, 23);
 		nameTextBox.TabIndex = 0;
 		// 
 		// extTextBox
 		// 
-		extTextBox.Location = new Point(392, 71);
+		extTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+		extTextBox.Location = new Point(492, 72);
 		extTextBox.Name = "extTextBox";
 		extTextBox.Size = new Size(80, 23);
 		extTextBox.TabIndex = 1;
 		// 
 		// dotLabel
 		// 
-		dotLabel.Location = new Point(375, 71);
+		dotLabel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+		dotLabel.Location = new Point(471, 71);
 		dotLabel.Name = "dotLabel";
 		dotLabel.Size = new Size(15, 23);
 		dotLabel.TabIndex = 3;
@@ -113,7 +116,7 @@ public class RenameForm : Form
 		// okButton
 		// 
 		okButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-		okButton.Location = new Point(266, 119);
+		okButton.Location = new Point(366, 119);
 		okButton.Name = "okButton";
 		okButton.Size = new Size(100, 30);
 		okButton.TabIndex = 2;
@@ -124,7 +127,7 @@ public class RenameForm : Form
 		// 
 		cancelButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
 		cancelButton.DialogResult = DialogResult.Cancel;
-		cancelButton.Location = new Point(372, 119);
+		cancelButton.Location = new Point(472, 119);
 		cancelButton.Name = "cancelButton";
 		cancelButton.Size = new Size(100, 30);
 		cancelButton.TabIndex = 3;
@@ -135,7 +138,7 @@ public class RenameForm : Form
 		// 
 		AcceptButton = okButton;
 		CancelButton = cancelButton;
-		ClientSize = new Size(484, 161);
+		ClientSize = new Size(584, 161);
 		Controls.Add(promptLabel);
 		Controls.Add(currentLabel);
 		Controls.Add(orderLabel);

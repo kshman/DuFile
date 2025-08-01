@@ -109,19 +109,6 @@ internal static class Alter
 			input.Split(separator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 	}
 
-	// Win32 CompareStringEx P/Invoke 선언
-#pragma warning disable SYSLIB1054
-	[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-	private static extern int CompareStringEx(
-		string lpLocaleName, uint dwCmpFlags,
-		string lpString1, int cchCount1,
-		string lpString2, int cchCount2,
-		IntPtr lpVersionInformation, IntPtr lpReserved, int lParam);
-#pragma warning restore SYSLIB1054
-
-	private const uint NORM_IGNORECASE = 0x00000001;
-	private const uint SORT_DIGITSASNUMBERS = 0x00000008;
-
 	// 자연스러운 파일명 비교 (Windows 탐색기와 동일)
 	public static int CompareNatualFilename(string? left, string? right)
 	{
@@ -145,5 +132,52 @@ internal static class Alter
 			3 => 1,
 			_ => string.Compare(left, right, StringComparison.OrdinalIgnoreCase)
 		};
+	}
+
+	// 휴지통으로 이동 (SHFileOperation 사용)
+	public static bool MoveToRecycleBin(string path)
+	{
+		var fs = new SHFILEOPSTRUCT
+		{
+			wFunc = FO_DELETE,
+			pFrom = path + "\0\0",
+			fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT,
+		};
+		return SHFileOperation(ref fs) == 0;
+	}
+
+	// Win32 P/Invoke
+#pragma warning disable SYSLIB1054
+	[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+	private static extern int CompareStringEx(
+		string lpLocaleName, uint dwCmpFlags,
+		string lpString1, int cchCount1,
+		string lpString2, int cchCount2,
+		IntPtr lpVersionInformation, IntPtr lpReserved, int lParam);
+
+	[DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+	private static extern int SHFileOperation(ref SHFILEOPSTRUCT fileOp);
+#pragma warning restore SYSLIB1054
+
+	private const uint NORM_IGNORECASE = 0x00000001;
+	private const uint SORT_DIGITSASNUMBERS = 0x00000008;
+
+	private const int FO_DELETE = 3;
+	private const int FOF_ALLOWUNDO = 0x40;
+	private const int FOF_NOCONFIRMATION = 0x10;
+	private const int FOF_SILENT = 0x4;
+
+	// ReSharper disable once InconsistentNaming
+	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+	private struct SHFILEOPSTRUCT
+	{
+		public IntPtr hwnd;
+		public int wFunc;
+		public string pFrom;
+		public string pTo;
+		public int fFlags;
+		public bool fAnyOperationsAborted;
+		public IntPtr hNameMappings;
+		public string lpszProgressTitle;
 	}
 }

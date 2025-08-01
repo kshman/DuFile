@@ -1,7 +1,7 @@
 ﻿// ReSharper disable MissingXmlDoc
 namespace DuFile.Windows;
 
-public sealed class LineInputForm : Form
+internal sealed class LineInputForm : Form
 {
 #nullable disable
 	private Label promptLabel;
@@ -47,14 +47,14 @@ public sealed class LineInputForm : Form
 		inputTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 		inputTextBox.Location = new Point(15, 35);
 		inputTextBox.Name = "inputTextBox";
-		inputTextBox.Size = new Size(407, 23);
+		inputTextBox.Size = new Size(557, 23);
 		inputTextBox.TabIndex = 1;
 		// 
 		// okButton
 		// 
 		okButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
 		okButton.DialogResult = DialogResult.OK;
-		okButton.Location = new Point(266, 74);
+		okButton.Location = new Point(416, 74);
 		okButton.Name = "okButton";
 		okButton.Size = new Size(75, 25);
 		okButton.TabIndex = 2;
@@ -65,7 +65,7 @@ public sealed class LineInputForm : Form
 		// 
 		cancelButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
 		cancelButton.DialogResult = DialogResult.Cancel;
-		cancelButton.Location = new Point(347, 74);
+		cancelButton.Location = new Point(497, 74);
 		cancelButton.Name = "cancelButton";
 		cancelButton.Size = new Size(75, 25);
 		cancelButton.TabIndex = 3;
@@ -76,7 +76,7 @@ public sealed class LineInputForm : Form
 		// 
 		AcceptButton = okButton;
 		CancelButton = cancelButton;
-		ClientSize = new Size(434, 111);
+		ClientSize = new Size(584, 111);
 		Controls.Add(promptLabel);
 		Controls.Add(inputTextBox);
 		Controls.Add(okButton);

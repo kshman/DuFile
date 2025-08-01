@@ -1,7 +1,7 @@
 ﻿// ReSharper disable MissingXmlDoc
 namespace DuFile.Windows;
 
-public sealed class MesgBoxForm : Form
+internal sealed class MesgBoxForm : Form
 {
 #nullable disable
 	private PictureBox iconBox;
@@ -78,7 +78,7 @@ public sealed class MesgBoxForm : Form
 		// 
 		okButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
 		okButton.DialogResult = DialogResult.OK;
-		okButton.Location = new Point(216, 298);
+		okButton.Location = new Point(366, 419);
 		okButton.Name = "okButton";
 		okButton.Size = new Size(100, 30);
 		okButton.TabIndex = 2;
@@ -89,7 +89,7 @@ public sealed class MesgBoxForm : Form
 		// 
 		cancelButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
 		cancelButton.DialogResult = DialogResult.Cancel;
-		cancelButton.Location = new Point(322, 298);
+		cancelButton.Location = new Point(472, 419);
 		cancelButton.Name = "cancelButton";
 		cancelButton.Size = new Size(100, 30);
 		cancelButton.TabIndex = 3;
@@ -102,14 +102,15 @@ public sealed class MesgBoxForm : Form
 		listItem.FormattingEnabled = true;
 		listItem.Location = new Point(12, 65);
 		listItem.Name = "listItem";
-		listItem.Size = new Size(410, 229);
+		listItem.SelectionMode = SelectionMode.None;
+		listItem.Size = new Size(560, 349);
 		listItem.TabIndex = 4;
 		// 
 		// utilButton
 		// 
 		utilButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
 		utilButton.DialogResult = DialogResult.Yes;
-		utilButton.Location = new Point(12, 298);
+		utilButton.Location = new Point(12, 419);
 		utilButton.Name = "utilButton";
 		utilButton.Size = new Size(100, 30);
 		utilButton.TabIndex = 5;
@@ -127,7 +128,7 @@ public sealed class MesgBoxForm : Form
 		// 
 		AcceptButton = okButton;
 		CancelButton = cancelButton;
-		ClientSize = new Size(434, 340);
+		ClientSize = new Size(584, 461);
 		Controls.Add(iconBox);
 		Controls.Add(utilButton);
 		Controls.Add(listItem);
@@ -172,6 +173,13 @@ public sealed class MesgBoxForm : Form
 			if (!string.IsNullOrEmpty(item))
 				listItem.Items.Add(item);
 		}
+	}
+
+	public void SetButtonText(string ok, string cancel, string util = "")
+	{
+		OkText = ok;
+		CancelText = cancel;
+		UtilText = util;
 	}
 
 	public DialogResult RunDialog()

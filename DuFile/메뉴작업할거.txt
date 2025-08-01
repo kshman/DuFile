@@ -1,17 +1,17 @@
-﻿// | Keys 값                | 일반적인 US 키보드에서의 키 | 
-// |------------------------|-----------------------------| 
-// | Keys.Oem1              | ; : (세미콜론/콜론)         | 
-// | Keys.Oem2              | / ? (슬래시/물음표)         | 
-// | Keys.Oem3              | ` ~ (백틱/틸드)             | 
-// | Keys.Oem4              | [ { (대괄호 열기/중괄호 열기)| 
-// | Keys.Oem5              | \ | (역슬래시/파이프)       | 
-// | Keys.Oem6              | ] } (대괄호 닫기/중괄호 닫기)| 
-// | Keys.Oem7              | ' " (작은따옴표/큰따옴표)   | 
-// | Keys.Oem8              | 일부 키보드에서 추가 기호    | 
-// | Keys.Oem102            | < > (유럽 키보드에서만 있음) | 
-// | Keys.OemMinus          | - _ (마이너스/언더스코어)    | 
-// | Keys.Oemplus           | = + (이퀄/플러스)           | 
-// | Keys.Oemcomma          | , < (콤마/작은 부등호)      | 
+﻿// | Keys 값                | 일반적인 US 키보드에서의 키 |
+// |------------------------|-----------------------------|
+// | Keys.Oem1              | ; : (세미콜론/콜론)         |
+// | Keys.Oem2              | / ? (슬래시/물음표)         |
+// | Keys.Oem3              | ` ~ (백틱/틸드)             |
+// | Keys.Oem4              | [ { (대괄호 열기/중괄호 열기)|
+// | Keys.Oem5              | \ | (역슬래시/파이프)       |
+// | Keys.Oem6              | ] } (대괄호 닫기/중괄호 닫기)|
+// | Keys.Oem7              | ' " (작은따옴표/큰따옴표)   |
+// | Keys.Oem8              | 일부 키보드에서 추가 기호    |
+// | Keys.Oem102            | < > (유럽 키보드에서만 있음) |
+// | Keys.OemMinus          | - _ (마이너스/언더스코어)    |
+// | Keys.Oemplus           | = + (이퀄/플러스)           |
+// | Keys.Oemcomma          | , < (콤마/작은 부등호)      |
 // | Keys.OemPeriod         | . > (마침표/큰 부등호)      |
 
 
@@ -127,21 +127,22 @@ new()
 		new MenuDef {
 			Text = "정렬(&A)",
 			SubMenus = [
-				new MenuDef { Text = "이름으로(&N)", Command = Commands.SortByName, Shortcut = "Ctrl+Shift+1" },
-				new MenuDef { Text = "확장자로(&E)", Command = Commands.SortByExtension, Shortcut = "Ctrl+Shift+2" },
-				new MenuDef { Text = "크기로(&S)", Command = Commands.SortBySize, Shortcut = "Ctrl+Shift+3" },
-				new MenuDef { Text = "날짜/시간으로(&T)", Command = Commands.SortByDateTime, Shortcut = "Ctrl+Shift+4" },
-				new MenuDef { Text = "속성으로(&R)", Command = Commands.SortByAttribute, Shortcut = "Ctrl+Shift+5" },
-				new MenuDef(),
-				new MenuDef { Text = "내림차순(&D)", Command = Commands.SortDesc, Shortcut = "Ctrl+Shift+D" },
+				 { Text = "이름으로(&N)", Command = Commands.SortByName, Shortcut = "Ctrl+Shift+1" },
+				 { Text = "확장자로(&E)", Command = Commands.SortByExtension, Shortcut = "Ctrl+Shift+2" },
+				 { Text = "크기로(&S)", Command = Commands.SortBySize, Shortcut = "Ctrl+Shift+3" },
+				 { Text = "날짜/시간으로(&T)", Command = Commands.SortByDateTime, Shortcut = "Ctrl+Shift+4" },
+				 { Text = "속성으로(&R)", Command = Commands.SortByAttribute, Shortcut = "Ctrl+Shift+5" },
+				 { Text = "내림차순(&D)", Command = Commands.SortDesc, Shortcut = "Ctrl+Shift+D" },
 			]
 		},
 		new MenuDef { Text = "골라보기(&F)", Command = Commands.None },
 		new MenuDef(),
-		new MenuDef { Text = "숨김 파일 보기(&Z)", Command = Commands.ShowHidden, Shortcut = "Alt+Z"},
+		 { Text = "숨김 파일 보기(&Z)", Command = Commands.ShowHidden, Shortcut = "Alt+Z"},
 		new MenuDef(),
-		new MenuDef { Text = "새 탭(&T)", Command = Commands.None, Shortcut = "Ctrl+T" },
-		new MenuDef { Text = "탭 목록(&Y)", Command = Commands.None },
+		 { Text = "새 탭(&T)", Command = Commands.NewTab, Shortcut = "Ctrl+T" },
+		 { Text = "탭 목록(&Y)", Command = Commands.TabList },
+		 { Text = "다음 탭(&N)", Command = Commands.NextTab, Shortcut = "Shift+T" },
+		 { Text = "이전 탭(&P)", Command = Commands.PreviousTab, Shortcut = "Ctrl+Shift+T" },
 	]
 },
 new()

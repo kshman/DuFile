@@ -5,7 +5,7 @@ namespace DuFile.Windows;
 /// <summary>
 /// 파일을 실제로 삭제하거나 휴지통으로 이동하는 폼입니다.
 /// </summary>
-public sealed class DeleteForm : Form
+internal sealed class DeleteForm : Form
 {
 #nullable disable
 	private Label promptLabel; // 현재 삭제 중인 파일 표시
@@ -66,7 +66,7 @@ public sealed class DeleteForm : Form
 		// 
 		cancelButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
 		cancelButton.DialogResult = DialogResult.Cancel;
-		cancelButton.Location = new Point(318, 58);
+		cancelButton.Location = new Point(482, 69);
 		cancelButton.Name = "cancelButton";
 		cancelButton.Size = new Size(90, 30);
 		cancelButton.TabIndex = 1;
@@ -76,7 +76,7 @@ public sealed class DeleteForm : Form
 		// DeleteForm
 		// 
 		CancelButton = cancelButton;
-		ClientSize = new Size(420, 100);
+		ClientSize = new Size(584, 111);
 		Controls.Add(promptLabel);
 		Controls.Add(cancelButton);
 		FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -132,7 +132,7 @@ public sealed class DeleteForm : Form
 
 			if (!TestMode)
 			{
-				var success = MoveToRecycleBin(item);
+				var success = Alter.MoveToRecycleBin(item);
 				if (!success)
 				{
 					var shouldContinue = QueryFailAction("휴지통으로 이동", item);
@@ -254,42 +254,6 @@ public sealed class DeleteForm : Form
 		cancelButton.Enabled = false;
 		_cts.Cancel();
 	}
-
-	// 휴지통으로 이동 (SHFileOperation 사용)
-	private static bool MoveToRecycleBin(string path)
-	{
-		var fs = new SHFILEOPSTRUCT
-		{
-			wFunc = FO_DELETE,
-			pFrom = path + "\0\0",
-			fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT,
-		};
-		return SHFileOperation(ref fs) == 0;
-	}
-
-	private const int FO_DELETE = 3;
-	private const int FOF_ALLOWUNDO = 0x40;
-	private const int FOF_NOCONFIRMATION = 0x10;
-	private const int FOF_SILENT = 0x4;
-
-	// ReSharper disable once InconsistentNaming
-	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-	private struct SHFILEOPSTRUCT
-	{
-		public IntPtr hwnd;
-		public int wFunc;
-		public string pFrom;
-		public string pTo;
-		public int fFlags;
-		public bool fAnyOperationsAborted;
-		public IntPtr hNameMappings;
-		public string lpszProgressTitle;
-	}
-
-#pragma warning disable SYSLIB1054
-	[DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-	private static extern int SHFileOperation(ref SHFILEOPSTRUCT fileOp);
-#pragma warning restore SYSLIB1054
 
 	/// <summary>
 	/// 다이얼로그를 실행합니다.

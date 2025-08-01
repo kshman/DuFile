@@ -43,6 +43,12 @@ internal class IconCache
 		return bmp;
 	}
 
+	public Bitmap? GetLargeIcon(string fullName, bool isFolder = false)
+	{
+		var bmp = ExtractIcon(fullName, isFolder, false);
+		return bmp;
+	}
+
 	// Win32 API 선언
 #pragma warning disable SYSLIB1054
 	[DllImport("shell32.dll", CharSet = CharSet.Unicode)]
@@ -65,16 +71,17 @@ internal class IconCache
 
 	// SHGetFileInfo에서 사용하는 플래그 상수
 	private const uint SHGFI_ICON = 0x000000100;
+	private const uint SHGFI_LARGEICON = 0x000000000;
 	private const uint SHGFI_SMALLICON = 0x000000001;
 	private const uint SHGFI_USEFILEATTRIBUTES = 0x000000010;
 
-	private static Bitmap? ExtractIcon(string path, bool isFolder)
+	private static Bitmap? ExtractIcon(string path, bool isFolder, bool smallIcon = true)
 	{
 		try
 		{
 			var shinfo = new SHFILEINFO();
 			var attr = 0;
-			var flags = SHGFI_ICON | SHGFI_SMALLICON;
+			var flags = SHGFI_ICON | (smallIcon ? SHGFI_SMALLICON : SHGFI_LARGEICON);
 
 			if (isFolder)
 			{

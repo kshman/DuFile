@@ -126,12 +126,12 @@ public partial class MainForm : Form
 	protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
 	{
 		// 텍스트 박스나 리치 텍스트 박스가 활성화된 경우 키 입력을 처리하지 않음
-		if (ActiveControl is TextBox)
-			return false;
-		if (_activePanel.ActiveControl is TextBox)
-			return false;
-		return base.ProcessCmdKey(ref msg, keyData);
+		return CanInvokeKey && base.ProcessCmdKey(ref msg, keyData);
 	}
+
+	private bool CanInvokeKey =>
+		ActiveControl is not TextBox &&
+		_activePanel.ActiveControl is not TextBox;
 
 	private void UpdateLayout()
 	{
@@ -160,8 +160,20 @@ public partial class MainForm : Form
 
 	private void Panels_PanelActivated(object? sender, FilePanelActiveEventArgs e)
 	{
-		_activePanel = e.Panel;
+		_activePanel = e.Index switch
+		{
+			1 => leftPanel,
+			2 => rightPanel,
+			_ => throw new ArgumentOutOfRangeException(nameof(e.Index), "Invalid panel index")
+		};
 	}
+
+	private FilePanel OtherPanel => _activePanel.PanelIndex switch
+	{
+		1 => rightPanel,
+		2 => leftPanel,
+		_ => throw new InvalidOperationException("Invalid panel index")
+	};
 
 	private void FuncBarButtonClick(object sender, FuncBarButtonClickEventArgs e)
 	{

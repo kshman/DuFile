@@ -17,3 +17,12 @@ internal enum WatcherCommand
 	Changed,
 	Renamed,
 }
+
+internal enum OverwriteBy
+{
+	None,
+	Skip,
+	Always,
+	Newer,
+	Rename,
+}
