@@ -1,4 +1,5 @@
 ﻿using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 
 namespace DuFile.Windows;
 
@@ -137,6 +138,13 @@ public sealed class FileList : ThemeControl
 			Invalidate();
 		}
 	}
+
+	/// <summary>
+	/// 파일 패널
+	/// </summary>
+	[Browsable(false)]
+	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+	public FilePanel? FilePanel { get; set; }
 
 	/// <summary>포커스 인덱스 변경 이벤트입니다.</summary>
 	[Category("FileList")]
@@ -464,12 +472,11 @@ public sealed class FileList : ThemeControl
 			case Keys.Return:
 				ItemActivate?.Invoke(this, EventArgs.Empty);
 				return;
-			case Keys.Back when Items.Count > 0:
-				if (Items[0] is FileListFolderItem { IsParent: true })
-				{
-					FocusedIndex = 0;
-					ItemActivate?.Invoke(this, EventArgs.Empty);
-				}
+			case Keys.Back:
+				FilePanel?.NavigateParent();
+				return;
+			case Keys.OemBackslash or Keys.Oem5:
+				FilePanel?.NavigateRoot();
 				return;
 			case Keys.Apps when ItemClicked != null:
 				// 메뉴키는 마우스 오른쪽 누름을 에뮬레이션
@@ -741,7 +748,7 @@ public sealed class FileList : ThemeControl
 	/// 지정한 이름의 항목에 포커스를 맞춥니다.
 	/// </summary>
 	/// <param name="name">포커스할 항목의 이름입니다.</param>
-	public void EnsureFocusByName(string? name)
+	public void EnsureFocus(string? name)
 	{
 		if (string.IsNullOrEmpty(name) || Items.Count == 0)
 			return;
@@ -1327,15 +1334,35 @@ public abstract class FileListItem
 	/// <summary>색상</summary>
 	public Color Color { get; set; }
 
+#nullable disable
 	/// <summary>전체 경로</summary>
-	public string FullName { get; }
+	public string FullName { get; private set; }
+	/// <summary>마지막 수정일</summary>
+	public DateTime LastWrite { get; private set; }
+	/// <summary>파일 속성</summary>
+	public FileAttributes Attributes { get; private set; }
+#nullable restore
 
 	/// <summary>
 	/// 파일 리스트 아이템을 생성합니다.
 	/// </summary>
-	protected FileListItem(string fullName)
+	protected FileListItem()
+	{
+	}
+
+	/// <summary>
+	/// Updates the file metadata with the specified values.
+	/// </summary>
+	/// <remarks>This method updates the file's metadata properties, including its path, last modification time, 
+	/// and attributes. Ensure that the provided values accurately reflect the desired state of the file.</remarks>
+	/// <param name="fullName">The full path of the file, including its name and extension.</param>
+	/// <param name="lastWrite">The date and time of the last modification to the file.</param>
+	/// <param name="attributes">The file attributes, such as read-only or hidden, to be applied.</param>
+	protected void SetFileInfomation(string fullName, DateTime lastWrite, FileAttributes attributes)
 	{
 		FullName = fullName;
+		LastWrite = lastWrite;
+		Attributes = attributes;
 	}
 
 	// 아이템을 그립니다.
@@ -1372,7 +1399,20 @@ public abstract class FileListItem
 		}
 
 		if (Icon != null)
-			g.DrawImage(Icon, prop.IconRect);
+		{
+			if (!Attributes.HasFlag(FileAttributes.Hidden))
+				g.DrawImage(Icon, prop.IconRect);
+			else
+			{
+				var m = new ColorMatrix
+				{
+					Matrix33 = 0.5f // 반투명하게
+				};
+				var attr = new ImageAttributes();
+				attr.SetColorMatrix(m);
+				g.DrawImage(Icon, prop.IconRect, 0, 0, Icon.Width, Icon.Height, GraphicsUnit.Pixel, attr);
+			}
+		}
 
 		prop.BaseAdvance();
 	}
@@ -1435,21 +1475,14 @@ public class FileListFileItem : FileListItem
 	public string Extension { get; private set; }
 	/// <summary>파일 크기</summary>
 	public long Size { get; private set; }
-	/// <summary>마지막 수정일</summary>
-	public DateTime LastWrite { get; private set; }
-	/// <summary>파일 속성</summary>
-	public FileAttributes Attributes { get; private set; }
 #nullable restore
 
 	/// <summary>
 	/// 파일 항목을 생성합니다. 파일명, 확장자, 아이콘, 색상 등 정보를 제공합니다.
 	/// </summary>
 	/// <param name="fileInfo">이 파일 항목을 초기화하는 파일 정보입니다.</param>
-	public FileListFileItem(FileInfo fileInfo) :
-		base(fileInfo.FullName)
-	{
+	public FileListFileItem(FileInfo fileInfo) =>
 		Renew(fileInfo);
-	}
 
 	/// <summary>
 	/// 파일 항목을 새로 설정합니다.
@@ -1457,14 +1490,13 @@ public class FileListFileItem : FileListItem
 	/// <param name="fileInfo"></param>
 	public void Renew(FileInfo fileInfo)
 	{
-		var name = fileInfo.Name;
-		var lastDot = name.LastIndexOf('.');
-		FileName = lastDot >= 0 ? name[..lastDot] : name;
-		Extension = lastDot >= 0 ? name[(lastDot + 1)..] : string.Empty;
+		SetFileInfomation(fileInfo.FullName, fileInfo.LastWriteTime, fileInfo.Attributes);
 
+		var name = fileInfo.Name;
+		var dot = name.LastIndexOf('.');
+		FileName = dot >= 0 ? name[..dot] : name;
+		Extension = dot >= 0 ? name[(dot + 1)..] : string.Empty;
 		Size = fileInfo.Length;
-		LastWrite = fileInfo.LastWriteTime;
-		Attributes = fileInfo.Attributes;
 
 		Icon = IconCache.Instance.GetIcon(fileInfo.FullName, Extension);
 		Color = Settings.Instance.Theme.GetColorExtension(Extension.ToUpperInvariant());
@@ -1522,10 +1554,6 @@ public class FileListFolderItem : FileListItem
 #nullable disable
 	/// <summary>디렉터리명</summary>
 	public string DirName { get; private set; }
-	/// <summary>마지막 수정일</summary>
-	public DateTime LastWrite { get; private set; }
-	/// <summary>디렉터리 속성</summary>
-	public FileAttributes Attributes { get; private set; }
 	/// <summary>부모 폴더 여부</summary>
 	public bool IsParent { get; }
 #nullable restore
@@ -1535,8 +1563,7 @@ public class FileListFolderItem : FileListItem
 	/// </summary>
 	/// <param name="dirInfo">디렉터리 정보를 담고 있는 <see cref="DirectoryInfo"/> 객체입니다.</param>
 	/// <param name="isParent">부모 폴더 여부입니다.</param>
-	public FileListFolderItem(DirectoryInfo dirInfo, bool isParent = false) :
-		base(dirInfo.FullName)
+	public FileListFolderItem(DirectoryInfo dirInfo, bool isParent = false)
 	{
 		Renew(dirInfo);
 		IsParent = isParent;
@@ -1548,9 +1575,10 @@ public class FileListFolderItem : FileListItem
 	/// <param name="dirInfo"></param>
 	public void Renew(DirectoryInfo dirInfo)
 	{
+		SetFileInfomation(dirInfo.FullName, dirInfo.LastWriteTime, dirInfo.Attributes);
+
 		DirName = dirInfo.Name;
-		LastWrite = dirInfo.LastWriteTime;
-		Attributes = dirInfo.Attributes;
+
 		Icon = IconCache.Instance.GetIcon(dirInfo.FullName, string.Empty, true);
 		Color = Settings.Instance.Theme.Folder;
 	}
@@ -1577,6 +1605,8 @@ public class FileListFolderItem : FileListItem
 /// </summary>
 public class FileListDriveItem : FileListItem
 {
+	/// <summary>드라이브 번호</summary>
+	public string Letter { get; }
 	/// <summary>표시 이름</summary>
 	public string DisplayName { get; }
 	/// <summary>드라이브명</summary>
@@ -1591,17 +1621,17 @@ public class FileListDriveItem : FileListItem
 	public DriveType Type { get; }
 	/// <summary>드라이브 포맷</summary>
 	public string Format { get; }
-	/// <summary>드라이브 번호</summary>
-	public string Letter => DriveName.TrimEnd('\\');
 
 	/// <summary>
 	/// 드라이브 항목을 생성합니다. 드라이브명, 볼륨 라벨, 아이콘, 색상 등을 설정합니다.
 	/// </summary>
 	/// <remarks>드라이브명과 볼륨 라벨을 추출 및 포맷하고, 아이콘과 테마 색상을 적용합니다.</remarks>
 	/// <param name="driveInfo">드라이브 정보를 초기화에 사용합니다.</param>
-	public FileListDriveItem(DriveInfo driveInfo) :
-		base(driveInfo.Name)
+	public FileListDriveItem(DriveInfo driveInfo) 
 	{
+		SetFileInfomation(driveInfo.RootDirectory.FullName, DateTime.Now, FileAttributes.Directory);
+
+		Letter = driveInfo.Name.TrimEnd('\\');
 		DriveName = driveInfo.Name;
 		VolumeLabel = driveInfo.VolumeLabel;
 		DisplayName = $"{Letter} {VolumeLabel}";

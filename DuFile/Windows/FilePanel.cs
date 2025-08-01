@@ -58,6 +58,29 @@ public class FilePanel : UserControl, IThemeUpate
 	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
 	public MainForm? MainForm { get; set; }
 
+	/// <summary>
+	/// 파일 시스템 감시 기능을 활성화하거나 비활성화합니다.
+	/// </summary>
+	[Browsable(false)]
+	[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+	public bool Watching
+	{
+		get => _watcher.EnableRaisingEvents;
+		set
+		{
+			if (value)
+			{
+				if (_watcher.Path != _current)
+					_watcher.Path = _current;
+				_watcher.EnableRaisingEvents = true;
+			}
+			else
+			{
+				_watcher.EnableRaisingEvents = false;
+			}
+		}
+	}
+
 	// 디자인 모드 여부 확인
 	private bool IsReallyDesignMode => LicenseManager.UsageMode == LicenseUsageMode.Designtime || (Site?.DesignMode ?? false);
 
@@ -70,6 +93,8 @@ public class FilePanel : UserControl, IThemeUpate
 		TabStop = true;
 
 		InitializeComponent();
+
+		fileList.FilePanel = this;
 
 		// 파일 감시자
 		_watcher.NotifyFilter =
@@ -723,6 +748,26 @@ public class FilePanel : UserControl, IThemeUpate
 	}
 
 	/// <summary>
+	/// 부모 폴더로 이동합니다.
+	/// </summary>
+	public void NavigateParent()
+	{
+		var info = new DirectoryInfo(_current);
+		if (info.Parent is { Exists: true })
+			NavigateTo(info.Parent.FullName, info.FullName);
+	}
+
+	/// <summary>
+	/// 루트 디렉터리로 이동합니다.
+	/// </summary>
+	public void NavigateRoot()
+	{
+		var info = new DirectoryInfo(_current);
+		if (info.Root is { Exists: true })
+			NavigateTo(info.Root.FullName, info.FullName);
+	}
+
+	/// <summary>
 	/// 지정한 디렉터리로 이동합니다.
 	/// </summary>
 	/// <param name="directory">이동할 디렉터리 경로</param>
@@ -806,7 +851,7 @@ public class FilePanel : UserControl, IThemeUpate
 		}
 
 		fileList.EndUpdate();
-		fileList.EnsureFocusByName(selection);
+		fileList.EnsureFocus(selection);
 
 		pathLabel.SetFolderInfo(info.FullName, dirCount, fileCount, totalSize);
 		pathLabel.SetDriveInfo(new DriveInfo(info.Root.FullName));
@@ -1026,6 +1071,13 @@ public class FilePanel : UserControl, IThemeUpate
 		var item = fileList.GetItem(index);
 		return item?.FullName;
 	}
+
+	/// <summary>
+	/// 지정한 이름의 항목에 포커스를 맞춥니다.
+	/// </summary>
+	/// <param name="name">포커스할 항목의 이름입니다.</param>
+	public void EnsureFocus(string? name) =>
+		fileList.EnsureFocus(name);
 
 	// 와처 멍령 셋
 	internal class WatcherItem(WatcherCommand command, string fullPath, string oldFullPath = "")

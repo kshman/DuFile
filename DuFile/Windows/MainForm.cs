@@ -123,6 +123,16 @@ public partial class MainForm : Form
 		funcBar.SetModifier(e.Modifiers);
 	}
 
+	protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+	{
+		// 텍스트 박스나 리치 텍스트 박스가 활성화된 경우 키 입력을 처리하지 않음
+		if (ActiveControl is TextBox)
+			return false;
+		if (_activePanel.ActiveControl is TextBox)
+			return false;
+		return base.ProcessCmdKey(ref msg, keyData);
+	}
+
 	private void UpdateLayout()
 	{
 		var menuHeight = menuStrip.Height;

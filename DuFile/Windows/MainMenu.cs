@@ -19,12 +19,12 @@ public partial class MainForm
 			SubMenus =
 			[
 				new MenuDef { Text = "열기(&O)", Command = Commands.Open },
-				new MenuDef { Text = "인수와 함께 열기(&W)", Command = Commands.OpenWith, Shortcut = "Ctrl+Enter"},
+				new MenuDef { Text = "인수와 함께 열기(&W)", Command = Commands.OpenWith, Shortcut = "Ctrl+Enter" },
 				new MenuDef(),
 				new MenuDef { Text = "휴지통으로(&T)", Command = Commands.Trash, Shortcut = "Delete" },
 				new MenuDef { Text = "바로 지우기(&D)", Command = Commands.Delete, Shortcut = "Shift+Delete" },
 				new MenuDef(),
-				new MenuDef { Text = "이름 바꾸기(&R)", Command = Commands.Rename, Shortcut = "Ctrl+R" },
+				new MenuDef { Text = "이름 바꾸기(&R)", Command = Commands.Rename },
 				new MenuDef(),
 				new MenuDef { Text = "속성(&A)", Command = Commands.Properties, Shortcut = "Alt+Enter" },
 				new MenuDef(),
@@ -38,12 +38,10 @@ public partial class MainForm
 			[
 				new MenuDef { Text = "즐겨찾기(&F)", Command = Commands.None, Shortcut = "F11" },
 				new MenuDef(),
-				new MenuDef { Text = "새 폴더 만들기(&N)", Command = Commands.None, Shortcut = "Alt+K" },
+				new MenuDef { Text = "새 폴더 만들기(&N)", Command = Commands.NewFolder },
 				new MenuDef(),
-				new MenuDef { Text = "뒤로(&B)", Command = Commands.None, Shortcut = "Ctrl+Left" },
-				new MenuDef { Text = "앞으로(&F)", Command = Commands.None, Shortcut = "Ctrl+Right" },
-				new MenuDef { Text = "상위 폴더로(&X)", Command = Commands.None },
-				new MenuDef { Text = "최상위 폴더로(&Z)", Command = Commands.None },
+				new MenuDef { Text = "상위 폴더로(&X)", Command = Commands.NavParentFolder },
+				new MenuDef { Text = "최상위 폴더로(&Z)", Command = Commands.NavRootFolder },
 			]
 		},
 		new()
@@ -53,10 +51,13 @@ public partial class MainForm
 		new()
 		{
 			Text = "보기(&V)",
-			SubMenus = [
-				new MenuDef {
+			SubMenus =
+			[
+				new MenuDef
+				{
 					Text = "정렬(&A)",
-					SubMenus = [
+					SubMenus =
+					[
 						new MenuDef { Text = "이름으로(&N)", Command = Commands.SortByName, Shortcut = "Ctrl+Shift+1" },
 						new MenuDef { Text = "확장자로(&E)", Command = Commands.SortByExtension, Shortcut = "Ctrl+Shift+2" },
 						new MenuDef { Text = "크기로(&S)", Command = Commands.SortBySize, Shortcut = "Ctrl+Shift+3" },
@@ -67,9 +68,9 @@ public partial class MainForm
 					]
 				},
 				new MenuDef(),
-				new MenuDef { Text = "숨김 파일 보기(&Z)", Command = Commands.ShowHidden, Shortcut = "Alt+Z"},
+				new MenuDef { Text = "숨김 파일 보기(&Z)", Command = Commands.ShowHidden, Shortcut = "Alt+Z" },
 				new MenuDef(),
-				new MenuDef { Text = "새 탭(&T)", Command = Commands.None, Shortcut = "Ctrl+T" },
+				new MenuDef { Text = "새 탭(&T)", Command = Commands.NewTab, Shortcut = "Ctrl+T" },
 				new MenuDef { Text = "탭 목록(&Y)", Command = Commands.None },
 			]
 		},
@@ -94,6 +95,7 @@ public partial class MainForm
 		_menuActions = new Dictionary<string, Action>
 		{
 			{ Commands.None, MenuNone },
+			// 파일
 			{ Commands.Exit, MenuExit },
 			{ Commands.Open, MenuOpen },
 			{ Commands.OpenWith, MenuOpenWith },
@@ -101,6 +103,19 @@ public partial class MainForm
 			{ Commands.Delete, MenuDelete },
 			{ Commands.Rename, MenuRename },
 			{ Commands.Properties, MenuProperties },
+			// 폴더 
+			{ Commands.NewFolder, MenuNewFolder },
+			{ Commands.NavParentFolder, MenuNavParentFolder },
+			{ Commands.NavRootFolder, MenuNavRootFolder },
+			// 편집
+			// 보기
+			{ Commands.SortByName, MenuSortByName },
+			{ Commands.SortByExtension, MenuSortByExtension }, 
+			{ Commands.SortBySize, MenuSortBySize },
+			{ Commands.SortByDateTime, MenuSortByDateTime },
+			{ Commands.SortByAttribute, MenuSortByAttribute },
+			{ Commands.SortDesc, MenuSortDesc },
+			{ Commands.ShowHidden, MenuShowHidden },
 			// 계속 추가합시다.
 		};
 
@@ -287,12 +302,12 @@ public partial class MainForm
 		if (ret == DialogResult.Cancel)
 			return;
 
+		_activePanel.Watching = false;
 		using var dlg = new DeleteForm("파일 삭제", files);
 		dlg.TrashMode = ret != DialogResult.Yes; // Yes면 바로 삭제, 아니면 휴지통으로 이동
 		dlg.RunDialog();
 
 		_activePanel.NavigateAgain();
-		_activePanel.Refresh();
 	}
 
 	private void MenuDelete()
@@ -309,12 +324,12 @@ public partial class MainForm
 		if (ret == DialogResult.Cancel)
 			return;
 
+		_activePanel.Watching = false;
 		using var dlg = new DeleteForm("파일 삭제", files);
 		dlg.TrashMode = ret == DialogResult.Yes; // Yes면 휴지통으로 이동, 아니면 바로 삭제
 		dlg.RunDialog();
 
 		_activePanel.NavigateAgain();
-		_activePanel.Refresh();
 	}
 
 	private void MenuRename()
@@ -322,12 +337,12 @@ public partial class MainForm
 		var files = _activePanel.GetSelectedItems();
 		if (files.Count == 0)
 			return;
-		
+
+		_activePanel.Watching = false;
 		using var dlg = new RenameForm(files);
 		dlg.RunDialog();
 
 		_activePanel.NavigateAgain();
-		_activePanel.Refresh();
 	}
 
 	private void MenuProperties()
@@ -336,5 +351,72 @@ public partial class MainForm
 		if (string.IsNullOrEmpty(name))
 			return;
 		ExcuteShowProperties(this, name);
+	}
+
+	private void MenuNewFolder()
+	{
+		var dir = _activePanel.CurrentDirectory;
+		if (string.IsNullOrEmpty(dir))
+			return;
+
+		using var dlg = new LineInputForm("새 폴더 만들기", "새 폴더의 이름을 입력해주세요.");
+		if (dlg.RunDialog() != DialogResult.OK)
+			return;
+
+		var name = dlg.InputText.Trim();
+		if (string.IsNullOrEmpty(name) || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+		{
+			MessageBox.Show("폴더 이름에 사용할 수 없는 문자가 포함되어 있습니다.", "오류", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+			return;
+		}
+
+		var fullName = Path.Combine(dir, name);
+		try
+		{
+			_activePanel.Watching = false;
+			Directory.CreateDirectory(fullName);
+			_activePanel.NavigateAgain();
+			_activePanel.EnsureFocus(fullName);
+		}
+		catch
+		{
+			MessageBox.Show($"폴더를 만들 수 없어요!", "오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+		}
+	}
+
+	private void MenuNavParentFolder() => _activePanel.NavigateParent();
+	private void MenuNavRootFolder() => _activePanel.NavigateRoot();
+
+	private void SortBySort(int sortOrder)
+	{
+		var settings = Settings.Instance;
+		settings.SortOrder = sortOrder;
+		leftPanel.Sort();
+		rightPanel.Sort();
+		CheckMenuItem();
+	}
+
+	private void MenuSortByName() => SortBySort(0);
+	private void MenuSortByExtension() => SortBySort(1);
+	private void MenuSortBySize() => SortBySort(2);
+	private void MenuSortByDateTime() => SortBySort(3);
+	private void MenuSortByAttribute() => SortBySort(4);
+
+	private void MenuSortDesc()
+	{
+		var settings = Settings.Instance;
+		settings.SortDescending = !settings.SortDescending;
+		leftPanel.Sort();
+		rightPanel.Sort();
+		CheckMenuItem();
+	}
+
+	private void MenuShowHidden()
+	{
+		var settings = Settings.Instance;
+		settings.ShowHidden = !settings.ShowHidden;
+		leftPanel.NavigateAgain();
+		rightPanel.NavigateAgain();
+		CheckMenuItem();
 	}
 }

@@ -25,7 +25,7 @@ internal class Commands
 	public const string NewFolder = "#새폴더";
 	public const string NewShortcutDesktop = "#새바로가기";
 	public const string None = "#없어요";
-	public const string Open= "#열기";
+	public const string Open = "#열기";
 	public const string OpenAll = "#모두열기";
 	public const string OpenWith = "#인수로열기";
 	public const string Properties = "#속성";
@@ -33,7 +33,7 @@ internal class Commands
 	public const string Rename = "#이름바꾸기";
 	public const string SelectAll = "#모두선택";
 	public const string SelectInvert = "#선택반전";
-	public const string SelectNone = "#선택해제";	
+	public const string SelectNone = "#선택해제";
 	public const string ShowHidden = "#숨김파일보기";
 	public const string SortByAttribute = "#속성으로정렬";
 	public const string SortByDateTime = "#일시로정렬";
@@ -48,6 +48,12 @@ internal class Commands
 	public const string UserPicture = "#사용자그림";
 	public const string UserVideo = "#사용자비디오";
 	public const string View = "#보기";
+	public const string NavParentFolder = "#부모폴더로";
+	public const string NavRootFolder = "#루트폴더로";
+	public const string NewTab = "#새탭";
+	public const string NextTab = "#다음탭";
+	public const string PreviousTab = "#이전탭";
+	public const string SwitchPanel = "#패널전환";
 
 	private static readonly Dictionary<string, string> s_friendlyMap = new()
 	{
@@ -97,6 +103,12 @@ internal class Commands
 		{ UserPicture, "사진 폴더" },
 		{ UserVideo, "동영상 폴더" },
 		{ View, "보기" },
+		{ NavParentFolder, "부모 폴더로 이동" },
+		{ NavRootFolder, "루트 폴더로 이동" },
+		{ NewTab, "새 탭" },
+		{ NextTab, "다음 탭" },
+		{ PreviousTab, "이전 탭" },
+		{ SwitchPanel, "패널 전환" },
 	};
 
 	public static string ToFriendlyName(string command) =>
